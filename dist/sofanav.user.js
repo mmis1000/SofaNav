@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121706
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 230694036146)
+// @version      0.3.0.202610121723
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 643003d32b0b)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
@@ -16,7 +16,7 @@
 // @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 230694036146 = first 12 hex digits of sha256(extension/content.js).
+// Build 643003d32b0b = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 // @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
 // reach it. Only then does it control cross-origin frames (over GM storage, see content.js
@@ -34,12 +34,13 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '230694036146';
+  const BUILD = '643003d32b0b';
   const USERSCRIPT = true; // the userscript build sets this
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
   // Standard-mapping button indexes.
   const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+  const HOLD_BACK = 700; // ms holding B that always goes back a page
   const STICK_PRESS = 0.55; // stick deflection that counts as pushing
   const STICK_RELEASE = 0.45; // ...and that it must drop below to count as released (keep close to STICK_PRESS)
   const STICK_SETTLE = 40; // ms to let a stick push finish before reading its angle
@@ -88,6 +89,7 @@
   let lastMove = null; // {from, to, angle} so pushing the opposite way returns
   let scrolledAway = false; // user scrolled manually since focus last moved
   let prevButtons = [];
+  let bDownAt = null; // when B went down (for hold-to-go-back)
   // phase: idle -> settle (stick only) -> held. See handleDirection.
   const held = { phase: 'idle', stick: false, angle: null, since: 0, next: 0, lastMoveAt: -Infinity, releasedAt: null, calmSince: null };
   let looping = false;
@@ -123,10 +125,10 @@
     return modals.reverse().find((m) => m.getBoundingClientRect().width > 0) || null;
   }
 
-  // An open popup that isn't a modal dialog: a menu or listbox floating over the page (X's
-  // account menu, a dropdown), an open popover, or what an expanded menu button opened. B
-  // closes it before going back. Menus that are part of the page layout don't float, so they
-  // don't count. Returns { el, trigger } or null.
+  // An open popup marked up as one (not a modal dialog): a menu or listbox floating over the
+  // page, an open popover, or what an expanded menu button opened. Menus that are part of the
+  // page layout don't float, so they don't count. Markup is only one hint that something is
+  // open (many sites mark up nothing, see coveringOverlay). Returns { el, trigger } or null.
   function activePopup() {
     const shown = (el) => {
       const r = el.getBoundingClientRect();
@@ -151,18 +153,53 @@
     return found.pop() || null; // later in the document = on top, usually
   }
 
-  async function closePopup(popup) {
-    const { el, trigger } = popup;
-    // Escape, sent from inside the popup so its own key handler sees it.
-    const inside = [nodeOf(current), document.activeElement].find((n) => n instanceof Element && el.contains(n)) || el;
-    for (const type of ['keydown', 'keyup']) {
-      inside.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true, composed: true }));
+  // A layer covering the page, whatever its markup (X's menus sit on a transparent full-screen
+  // mask): the same big fixed element is on top across the screen, and page content outside it
+  // is hidden beneath it. An app whose whole page lives in one fixed element has nothing outside
+  // it, so it doesn't count. This only tells B not to leave the page; it can't say how to close it.
+  function coveringOverlay() {
+    let layer = null;
+    for (const [fx, fy] of [[0.5, 0.5], [0.15, 0.15], [0.85, 0.15], [0.15, 0.85], [0.85, 0.85]]) {
+      let f = null;
+      for (let n = document.elementFromPoint(innerWidth * fx, innerHeight * fy); n && n !== document.documentElement; n = n.parentElement) {
+        if (getComputedStyle(n).position !== 'fixed') continue;
+        const r = n.getBoundingClientRect();
+        if (r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9) f = n; // outermost
+      }
+      if (!f || (layer && f !== layer)) return null;
+      layer = f;
     }
-    await new Promise((r) => setTimeout(r, 200));
-    if (activePopup()?.el !== el) return;
-    // Still open (scripted Escape is ignored by native popovers and some sites).
-    if (el.matches(':popover-open')) { try { el.hidePopover(); } catch {} return; }
-    if (trigger?.isConnected) activate(trigger); // menu buttons toggle
+    let covered = 0;
+    for (const el of document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')) {
+      if (layer.contains(el)) continue;
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      if (r.width < 2 || r.height < 2 || x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
+      const hit = document.elementFromPoint(x, y);
+      if (hit && layer.contains(hit) && ++covered >= 3) return layer;
+    }
+    return null;
+  }
+
+  // A scripted Escape (keydown + keyup). Pages' own handlers see it; browser defaults ignore it
+  // (untrusted). Older handlers check keyCode/which, which the constructor leaves at 0.
+  function sendEscape(target) {
+    for (const type of ['keydown', 'keyup']) {
+      const e = new KeyboardEvent(type, { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true, composed: true, view: document.defaultView });
+      for (const k of ['keyCode', 'which']) Object.defineProperty(e, k, { get: () => 27 });
+      target.dispatchEvent(e);
+    }
+  }
+
+  // Something is open over the page (aria-modal dialog, floating menu, covering layer): one
+  // Escape attempt per B press, from where the user is (inside it if possible), never history.back.
+  async function dismissOpen(box, trigger) {
+    const here = [nodeOf(current), document.activeElement].filter((n) => n instanceof Element && n.isConnected);
+    sendEscape(here.find((n) => box.contains(n)) || here[0] || box);
+    await new Promise((r) => setTimeout(r, 250));
+    if (!box.isConnected || box.getBoundingClientRect().width < 2) return;
+    if (trigger?.isConnected && trigger.getAttribute('aria-expanded') === 'true') { activate(trigger); return; } // menu buttons toggle
+    say('Hold B to go back a page');
   }
 
   function usable(el) {
@@ -1381,7 +1418,8 @@
     if (activeScope() && await leaveScope()) return;
     const modal = activeModal();
     const popup = activePopup();
-    if (popup && (!modal || modal.contains(popup.el))) { await closePopup(popup); return; }
+    // Browser primitives first: these close for real (and respect a cancelled close request).
+    if (popup?.el.matches(':popover-open') && (!modal || modal.contains(popup.el))) { try { popup.el.hidePopover(); } catch {} return; }
     if (modal?.tagName === 'DIALOG') {
       // A script-dispatched Escape is untrusted, so browsers ignore it for <dialog>.
       // requestClose() is the real close request (fires cancel, honours preventDefault).
@@ -1389,16 +1427,15 @@
       else if (modal.dispatchEvent(new Event('cancel', { cancelable: true }))) modal.close();
       return;
     }
-    if (modal) {
-      // ARIA dialogs: their own code listens for Escape.
-      const target = ae || document.body;
-      for (const type of ['keydown', 'keyup']) {
-        target.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-      }
-      return;
-    }
+    // Custom UI: anything that looks open gets an Escape instead of leaving the page.
+    if (popup && (!modal || modal.contains(popup.el))) { await dismissOpen(popup.el, popup.trigger); return; }
+    if (modal) { await dismissOpen(modal); return; }
+    const overlay = coveringOverlay();
+    if (overlay) { await dismissOpen(overlay); return; }
+    wentBack = true;
     history.back();
   }
+  let wentBack = false; // this B press already went back a page (so holding it doesn't go back twice)
 
   function pageScroll(sign) {
     scrolledAway = true;
@@ -1935,7 +1972,13 @@
       updateNeedle(handleDirection(now, buttons, axes));
 
       if (pressed(BTN.A)) { if (current && usable(current)) activate(current); else move(DIR_ANGLE.down, true); }
-      if (pressed(BTN.B)) back();
+      if (pressed(BTN.B)) { wentBack = false; bDownAt = now; back(); }
+      // Hold B: always go back a page (when the press only closed something, or looked stuck).
+      if (buttons[BTN.B] && bDownAt != null && now - bDownAt >= HOLD_BACK) {
+        bDownAt = null;
+        if (!wentBack) { wentBack = true; say('Back'); history.back(); }
+      }
+      if (!buttons[BTN.B]) bDownAt = null;
       if (pressed(BTN.Y)) cycleViz();
       if (pressed(BTN.X)) enterScope();
       if (pressed(BTN.MENU)) debugReport(); // ☰: debug report (Alt+Shift+D can be taken by the page)

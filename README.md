@@ -56,7 +56,8 @@ docs/
 | D-pad | Move between elements (4-direction scored graph) |
 | Left stick | Free aim at any angle (ray cast) |
 | A | Click / focus a text field |
-| B | Leave text field → leave container → close dialog → history back |
+| B | Leave text field → leave container → close dialog / popover → Escape to whatever covers the page (menus, overlays) → otherwise history back |
+| Hold B | Always history back (if a popup won't close) |
 | X | Enter the focused container (a post card, or a scrollable panel — A also enters a panel) |
 | Y | Cycle graph view: off → focused item → whole screen |
 | LB / RB | Previous / next tab (extension only) |

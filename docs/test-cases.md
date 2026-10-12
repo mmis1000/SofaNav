@@ -416,19 +416,30 @@ automated (closed source, store-only); check it by hand with
 `/test/attack/attacker.html` and `/test/?ext`.
 
 **E31. B couldn't close X's account menu; it went back a page instead.** B
-closed native `<dialog>`s and `aria-modal` dialogs only. X's account menu (and
-most dropdowns) is a floating `role="menu"` in a full-screen layer, neither of
-those, so B fell through to `history.back()` and the menu stayed open. *Fix:*
-`activePopup` finds an open popup that isn't a modal: a `menu`, `listbox` or
-non-modal `dialog` that floats (absolutely positioned, or inside something
-fixed; menus that are part of the layout don't count), an open `popover`, or
-what an expanded `aria-haspopup` button controls. B closes it first: Escape is
-sent from inside the popup (X handles it on the menu, not the document); if it
-is still open after 200 ms, `hidePopover()` for popovers (they ignore a scripted
-Escape) or the menu button is pressed again. *Where:* `activePopup`,
-`closePopup`, `back`. *Checks:* automated (`test:regress`, an X-style menu and a
-native popover on the test page's "Popup menus" section); fails on 36b24f8 ("B
-went back a page").
+closed native `<dialog>`s and `aria-modal` dialogs only, then called
+`history.back()`, and the menu stayed open. A first fix (883b834) recognised
+popups by markup (`role="menu"`, `aria-haspopup`...) and still failed on X: the
+debug report showed the menu is a plain `<div role="group" tabindex="0">`, and
+the only reachable stop (a transparent full-screen mask covers the rest).
+Markup guessing is whack-a-mole. *Fix* (design agreed with the user after an
+outside review, ChatGPT): there is no reliable "Escape was unhandled" signal
+(`preventDefault` means cancelled, not closed; DOM changes don't prove
+causation), so B never infers success from a reaction. Instead: (1) browser
+primitives close for real: `dialog.requestClose()`, `hidePopover()`; (2) if
+anything *looks* open (aria-modal, popup markup, or `coveringOverlay`: the same
+big fixed element is on top at five points across the screen and hides at
+least 3 focusable page elements outside it, so a whole-page fixed app shell
+doesn't count), B sends one Escape (with legacy `keyCode`/`which` set, from the
+focused element inside it) and **never** goes back; if it's still there, the
+menu button is pressed again if known, else a toast says "Hold B to go back a
+page"; (3) otherwise single-press B goes back as before; (4) holding B for
+700 ms always goes back (once per press), the escape hatch for anything that
+won't close. *Where:* `activePopup`, `coveringOverlay`, `sendEscape`,
+`dismissOpen`, `back`, B handling in `tick`. *Checks:* automated
+(`test:regress`: an X-style `role="group"` menu on a mask, a native popover, an
+overlay that ignores Escape (B stays, hold B goes back)); fails on 883b834 ("B
+went back a page"). Not yet confirmed on x.com itself: whether X reacts to a
+scripted Escape was still being checked by hand.
 
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its

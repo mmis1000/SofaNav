@@ -65,26 +65,35 @@ const checks = {
     return { ok: !open, detail: `dialog.open=${open}` };
   },
 
-  // E31: B must close a floating menu (X's account menu) or a popover, not go back a page.
-  async 'E31 B closes an open popup menu instead of going back'(page) {
+  // E31: B must close a popup (X's account menu: no menu markup, on a full-screen mask) or a
+  // popover, not go back a page; over something that ignores Escape it stays; holding B goes back.
+  async 'E31 B closes popups instead of going back; holding B goes back'(page) {
     const { press, wait } = helpers(page);
+    const open = (btn, sel) => page.evaluate(async ([b, s]) => {
+      document.getElementById(b).scrollIntoView({ block: 'center' });
+      document.getElementById(b).click();
+      await new Promise((r) => setTimeout(r, 300));
+      __sofanav.focus(document.querySelector(s));
+    }, [btn, sel]);
     await press('ArrowUp');
     await page.evaluate(() => { location.hash = 'before-menu'; });
-    await page.evaluate(() => { document.getElementById('menuBtn').scrollIntoView({ block: 'center' }); document.getElementById('menuBtn').click(); });
-    await wait(300);
-    await page.evaluate(() => __sofanav.focus(document.querySelector('#menu [role=menuitem]')));
+    await open('menuBtn', '#menu');
     await wait(300);
     await press('Backspace', 700);
     const menu = await page.evaluate(() => ({ open: !document.getElementById('menuLayer').hidden, hash: location.hash }));
     if (menu.hash !== '#before-menu') return { ok: false, detail: `B went back a page (X-style menu open=${menu.open})` };
-    await page.evaluate(() => { document.getElementById('popBtn').click(); });
-    await wait(300);
-    await page.evaluate(() => __sofanav.focus(document.querySelector('#pop button')));
+    await open('popBtn', '#pop button');
     await wait(300);
     await press('Backspace', 700);
     const pop = await page.evaluate(() => ({ open: !!document.getElementById('pop')?.matches(':popover-open'), hash: location.hash }));
-    const ok = !menu.open && !pop.open && pop.hash === '#before-menu';
-    return { ok, detail: `X-style menu open=${menu.open}, popover open=${pop.open}, page ${pop.hash === '#before-menu' ? 'stayed' : 'went back'}` };
+    await open('stuckBtn', '#menu');
+    await wait(300);
+    await press('Backspace', 700);
+    const stuck = await page.evaluate(() => ({ open: !document.getElementById('menuLayer').hidden, hash: location.hash }));
+    await page.keyboard.down('Backspace'); await wait(1000); await page.keyboard.up('Backspace'); await wait(500);
+    const held = await page.evaluate(() => location.hash);
+    const ok = !menu.open && !pop.open && pop.hash === '#before-menu' && stuck.hash === '#before-menu' && held === '';
+    return { ok, detail: `X-style menu open=${menu.open}, popover open=${pop.open}, stuck overlay: B ${stuck.hash === '#before-menu' ? 'stayed' : 'went back'}, hold B ${held === '' ? 'went back' : 'stayed'}` };
   },
 
   // E21: a frame that navigates to a page without the script must become one plain element.
