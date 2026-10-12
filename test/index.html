@@ -223,6 +223,14 @@
   };
 </script>
 
+<h2>Corner near-miss (E27) — ↑ from the post must go to the reply box, not the sidebar link at its corner</h2>
+<!-- Twitter's geometry: a left-nav link whose corner almost touches the post (13 px across, 14 px up). -->
+<div style="position:relative;height:250px;margin:0 24px">
+  <button id="nmNav" style="position:absolute;left:0;top:0;width:360px;height:80px">Premium+ (sidebar)</button>
+  <button id="nmReply" style="position:absolute;left:465px;top:8px;width:610px;height:38px">Post your reply</button>
+  <button id="nmPost" style="position:absolute;left:373px;top:95px;width:830px;height:130px">Feed post</button>
+</div>
+
 <h2>Orphan case — E is never the nearest target from anywhere (should be rescued, amber outline)</h2>
 <div style="position:relative;height:260px;margin:0 24px">
   <button style="position:absolute;left:0;top:0;width:60px">A</button>

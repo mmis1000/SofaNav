@@ -29,6 +29,7 @@ section heading on that page.
 | 9 | Form & dialog | A on the text input, then B → input focused, then left; no history back | Core: B's layered meaning (text field first) | `activate`, `back` |
 | 10 | Form & dialog | Open dialog, move, B → focus stays in the dialog; B closes it (automated: `npm run test:regress`) | Core: modal boundary; guards E20 (native `showModal()` dialog really closes) | `activeModal`, `candidatesNow`, `back` |
 | 11 | Iframes / any | Move focus, then ↓ at once while it is still scrolling → no reset to the page's top-left | Guards E1: our own smooth scroll must not count as "user scrolled away" | `scrolledAway`, `moveNow` (`startOk`) |
+| 12a | Corner near-miss | Focus "Feed post", ↑ → "Post your reply", not the sidebar link whose corner nearly touches the post (automated) | Guards E27 | `score` (`MAX_CENTER_DEVIATION`) |
 | 12 | Horizontal scroller | Scroll the box so Item 1 pokes out left of Game 1 above; ← from Game 1 → nothing (dark gap / scroll), never Item 1 | Guards E7: elements beside/below must not count as "left" | `score` (overlap rule, `MAX_DEVIATION`) |
 
 ### Left stick (free aim) and input feel
@@ -336,6 +337,20 @@ more than 3× it is re-checked, and if it is no longer a stop focus re-anchors
 right away, measured from where the element was when it got focus (a grown
 timeline's middle is meaningless). *Where:* `settling`, `revalidateCurrent`,
 `setCurrent` (`focusRect`), `reentryPoint` (`pos`). *Checks:* 35c.
+
+**E27. ↑ from a feed post went to a sidebar link beside it (Twitter).** Focused
+post x 505–1338, y 662–795; the reply box right above it overlaps horizontally,
+54 px up (score 54); the left-nav "Premium+" ends at x 492 and y 648, so its
+corner is only 13 px across and 14 px up from the post's corner. The score
+measures the gap between the boxes, which looked like a short 45° step (≈ 26),
+so the sideways link won. It also explains "two different up targets for the
+same post": as the page shifted ~30 px between screenshots, which sidebar icon
+sat nearest the corner changed (rocket vs the reply box's icon). *Fix:* when the
+boxes don't overlap sideways at all, the angle between their centers must also
+be within `MAX_CENTER_DEVIATION` (60°) of the pressed direction (Premium+ is
+79° off, the rocket 72°); boxes that overlap sideways are unaffected. Checked:
+no element on the test page becomes unreachable and established paths are
+unchanged. *Where:* `score`. *Checks:* 12a.
 
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its

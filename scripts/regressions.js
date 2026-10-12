@@ -202,6 +202,23 @@ const checks = {
     const onPlaceholder = r.id === 'spaTimeline';
     return { ok: !onPlaceholder && r.isStop, detail: `focus: ${r.tag}${r.id ? '#' + r.id : ''} "${r.text}" stop=${r.isStop}` };
   },
+
+  // E27: an element beside the focused one whose corner nearly touches it must not count as "ahead".
+  async 'E27 up from a post goes to the reply box, not a sidebar link at its corner'(page) {
+    const { press, wait } = helpers(page);
+    await press('ArrowUp');
+    await page.evaluate(async () => {
+      const post = document.getElementById('nmPost');
+      post.scrollIntoView({ block: 'center' });
+      await new Promise((r) => setTimeout(r, 300));
+      __gpn.candidates();
+      __gpn.focus(post);
+    });
+    await wait(300);
+    await press('ArrowUp');
+    const id = await page.evaluate(() => __gpn.current()?.id);
+    return { ok: id === 'nmReply', detail: `↑ from the post → ${id}` };
+  },
 };
 
 (async () => {

@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
-// @version      0.3.0.202610121508
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 088e774f24fd)
+// @version      0.3.0.202610121517
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build def5ba84a658)
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 088e774f24fd = first 12 hex digits of sha256(extension/content.js).
+// Build def5ba84a658 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // Gamepad spatial navigation: D-pad / left stick moves a focus ring between
@@ -20,7 +20,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '088e774f24fd';
+  const BUILD = 'def5ba84a658';
   if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -47,6 +47,10 @@
   // willing to go diagonal (fewer unreachable items).
   const ANGLE_PENALTY = 1;
   const MAX_DEVIATION = 70; // degrees; anything further off the pressed direction is never a target
+  // For boxes that don't overlap sideways at all, the angle between their centers too:
+  // two boxes can almost touch at a corner (a sidebar link next to a feed post), which makes
+  // the gap look 45° off and tiny although the target is really beside, not ahead.
+  const MAX_CENTER_DEVIATION = 60;
   const RAY_PAD = 4; // px added around each element so rays don't slip through small gaps
   const MIN_WEDGE = 10; // degrees
   const AIM_TOLERANCE = 30; // a ray that hits nothing still takes an element within this many degrees
@@ -718,6 +722,13 @@
     const forward = Math.max(horizontal ? gx : gy, 0.5);
     // Too far off the pressed direction to count, however empty that side is.
     if (Math.atan2(lateral, forward) * 180 / Math.PI > MAX_DEVIATION) return Infinity;
+    // Separated sideways: judge by centers as well, so a corner that happens to be close
+    // doesn't make a sideways neighbour count as ahead.
+    if (lateral > 0) {
+      const ahead = { right: bcx - acx, left: acx - bcx, down: bcy - acy, up: acy - bcy }[dir];
+      const across = horizontal ? Math.abs(bcy - acy) : Math.abs(bcx - acx);
+      if (Math.atan2(across, ahead) * 180 / Math.PI > MAX_CENTER_DEVIATION) return Infinity;
+    }
     const dist = Math.hypot(forward, lateral);
     return dist * (dist / forward) ** ANGLE_PENALTY + Math.hypot(bcx - acx, bcy - acy) * 0.01; // tiny tie-break by center
   }
