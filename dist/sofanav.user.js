@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121824
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 81ee9013b10a)
+// @version      0.3.0.202610121845
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 971c074a2345)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
@@ -16,7 +16,7 @@
 // @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 81ee9013b10a = first 12 hex digits of sha256(extension/content.js).
+// Build 971c074a2345 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 // @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
 // reach it. Only then does it control cross-origin frames (over GM storage, see content.js
@@ -34,7 +34,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '81ee9013b10a';
+  const BUILD = '971c074a2345';
   const USERSCRIPT = true; // the userscript build sets this
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
@@ -219,8 +219,10 @@
     let target = ae && ae !== document.body && box.contains(ae) ? ae : null;
     if (!target && cur instanceof Element && box.contains(cur)) target = cur.querySelector(FOCUSABLE_SEL) || cur;
     sendEscape(target || box);
+    backNote(`Escape sent from ${brief(target || box)}`);
     const isOpen = () => box.isConnected && box.getBoundingClientRect().width >= 2 && getComputedStyle(box).visibility !== 'hidden';
     await new Promise((r) => setTimeout(r, 250));
+    backNote(isOpen() ? 'still open' : 'closed');
     if (!isOpen()) return true;
     if (trigger?.isConnected && trigger.getAttribute('aria-expanded') === 'true') { // menu buttons toggle
       activate(trigger);
@@ -1459,11 +1461,23 @@
     el.click();
   }
 
+  // What the last B press saw and did, step by step (shown in the debug report).
+  let lastBack = null;
+  const backNote = (step) => { lastBack?.steps.push(step); };
+  const brief = (el) => (el instanceof RemoteEl ? `frame ${el.frame.iframe.id || ''}#${el.id}`
+    : el instanceof Element ? `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.getAttribute('role') ? '[role=' + el.getAttribute('role') + ']' : ''}${el.getAttribute('data-testid') ? '[' + el.getAttribute('data-testid') + ']' : ''} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 24)}"`
+      : String(el));
+
   async function back() {
+    lastBack = { at: new Date().toISOString(), current: brief(current), focused: brief(document.activeElement), steps: [] };
+    try { await backSteps(); } catch (e) { backNote(`error: ${e?.message || e}`); throw e; }
+  }
+
+  async function backSteps() {
     // Focus inside a frame: let it leave a text field first.
     if (current instanceof RemoteEl && await askFrameBack(current.frame)) return;
     const ae = document.activeElement;
-    if (ae && ae.matches?.(TEXT_LIKE)) { ae.blur(); return; }
+    if (ae && ae.matches?.(TEXT_LIKE)) { backNote('left text field'); ae.blur(); return; }
     const modal = activeModal();
     const popup = activePopup();
     const pop = popup && (!modal || modal.contains(popup.el)) ? popup : null;
@@ -1474,6 +1488,7 @@
     // and never leaves the page: holding B does that.
     const overlay = !pop && !modal ? coveringOverlay() : null;
     const light = pop || (overlay ? { el: overlay } : null);
+    backNote(`modal: ${modal ? brief(modal) : '-'} · popup: ${pop ? brief(pop.el) : '-'} · overlay: ${overlay ? brief(overlay) : '-'}`);
     if (light) {
       if (await dismissOpen(light.el, light.trigger)) return;
       if (activeScope() && await leaveScope()) return;
@@ -1482,8 +1497,9 @@
     }
     // Weak hint (a small floating box): try Escape; if it stays, B carries on as usual.
     const floating = !modal ? floatingBox() : null;
+    backNote(`floating box: ${floating ? brief(floating) : '-'}`);
     if (floating && await dismissOpen(floating)) return;
-    if (activeScope() && await leaveScope()) return;
+    if (activeScope() && await leaveScope()) { backNote('left scope'); return; }
     if (modal?.tagName === 'DIALOG') {
       // A script-dispatched Escape is untrusted, so browsers ignore it for <dialog>.
       // requestClose() is the real close request (fires cancel, honours preventDefault).
@@ -1493,6 +1509,7 @@
     }
     // Custom UI: anything that looks open gets an Escape instead of leaving the page.
     if (modal) { if (!await dismissOpen(modal)) say('Hold B to go back a page'); return; }
+    backNote('history.back()');
     wentBack = true;
     history.back();
   }
@@ -2043,8 +2060,6 @@
       };
     };
     // Where each D-pad direction would go from here, and why.
-    const brief = (el) => (el instanceof RemoteEl ? `frame ${el.frame.iframe.id || ''}#${el.id}`
-      : `${el.tagName.toLowerCase()}${el.getAttribute('data-testid') ? '[' + el.getAttribute('data-testid') + ']' : ''} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 24)}"`);
     const targets = {};
     if (current && list.includes(current)) {
       const graph = buildGraph(list);
@@ -2055,6 +2070,10 @@
     }
     console.info('[sofanav] debug', {
       build: BUILD, url: location.href, current: describe(current), currentIsStop: list.includes(current), targets,
+      // What B would see now, and what the last B press did.
+      focused: brief(document.activeElement),
+      open: { popup: activePopup() && brief(activePopup().el), overlay: coveringOverlay() && brief(coveringOverlay()), floating: floatingBox() && brief(floatingBox()) },
+      lastBack,
       lastMove: lastMove && { from: brief(lastMove.from), angle: Math.round(lastMove.angle) },
       scopes: scopes.map(describe), modal: describe(activeModal()), stops: list.length, scrolledAway,
       lastRect: lastRect && [lastRect.left, lastRect.top, lastRect.width, lastRect.height].map(Math.round),
