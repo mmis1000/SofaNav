@@ -4,15 +4,16 @@
 //   sofanav.user.js            userscript install link (Tampermonkey/Violentmonkey open it)
 //   sofanav-extension.zip      extension/ folder, for "Load unpacked"
 //   sofanav-demo.mp4           demo video
-// Usage: npm run build && npm run site   (CI does both; see .github/workflows/pages.yml)
+// Usage: npm run build && npm run site   (CI does both; see .github/workflows/ci.yml)
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
 const root = path.join(__dirname, '..');
 const out = path.join(root, '_site');
-fs.rmSync(out, { recursive: true, force: true });
+// Empty it rather than delete it: on Windows a folder being served (npm run serve:site) can't be removed.
 fs.mkdirSync(out, { recursive: true });
+for (const f of fs.readdirSync(out)) fs.rmSync(path.join(out, f), { recursive: true, force: true });
 
 for (const f of fs.readdirSync(path.join(root, 'site'))) fs.copyFileSync(path.join(root, 'site', f), path.join(out, f));
 const userscript = fs.readFileSync(path.join(root, 'dist', 'sofanav.user.js'));
