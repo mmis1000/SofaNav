@@ -48,9 +48,9 @@ section heading on that page.
 | # | Where | Steps → Expected | Why it exists | Code |
 |---|---|---|---|---|
 | 20 | Chip bar | Focus ›, press A → arrow hides; focus on the nearest chip | Guards E12: the YouTube chip-bar arrow bug | `recoverFocus`, `gone`, `rememberRect`, `GONE_CHECK_MS` |
-| 21 | Iframes | Focus F1 in the cross-origin frame, right-stick the frame until F1 is gone, ↓ → visible element in the same frame | Guards E13 (the reported "throws focus out" bug) | `reentryPoint`, `actualRect`, `sameScrollArea`, `toTop(…, clip=false)` |
+| 21 | Iframes | Enter the cross-origin frame, focus F1, right-stick the frame until F1 is gone, ↓ → visible element in the same frame | Guards E13 (the reported "throws focus out" bug) | `reentryPoint`, `actualRect`, `sameScrollArea`, `toTop(…, clip=false)` |
 | 22 | Horizontal scroller | Enter the scroller, focus Item 2, right-stick the box until Item 2 is gone, ↓ → nearest visible item in the scroller | Guards E13 outside iframes (same bug in ordinary scroll boxes) | `reentryPoint`, `scrollBox` |
-| 23 | Iframes | A on "Hide me" in the cross-origin frame → nearest element in that frame | Guards E12 across frames (the frame client reports `gone`) | `startClient` (`track`), `recoverFocus` |
+| 23 | Iframes | Enter the cross-origin frame, A on "Hide me" → nearest element in that frame | Guards E12 across frames (the frame client reports `gone`) | `startClient` (`track`), `recoverFocus` |
 
 ### Unreachable elements
 
@@ -62,10 +62,12 @@ section heading on that page.
 
 | # | Where | Steps → Expected | Why it exists | Code |
 |---|---|---|---|---|
-| 25 | Iframes | → from "Before frames" → F1 → F2 → F3 (same-origin) → F1 → F2 → F3 (cross-origin) → script-less frame (one element) | Core: frames navigate as if part of the page; frames without a client degrade to one element | `refreshFrames`, `applySnapshot`, `RemoteEl`, `toTop`, `candidatesNow` |
-| 26 | Iframes | A on F1 in the cross-origin frame → status box "click in cross-origin: F1" | Core: commands reach cross-origin frames | `activate` (RemoteEl branch), `startClient` |
+| 25 | Iframes | → from "Before frames" → the same-origin frame is one stop ("A/X enter (n) · right stick scrolls"); → again → the cross-origin frame. A/X enters: F1 → F2 → F3 inside; B leaves. The script-less frame is one plain element | Core: frames navigate like the page; scrolling frames are scroll containers (E18); frames without a client degrade to one element | `refreshFrames`, `applySnapshot`, `RemoteEl`, `toTop`, `candidatesNow` |
+| 26 | Iframes | Enter the cross-origin frame, A on F1 → status box "click in cross-origin: F1" | Core: commands reach cross-origin frames | `activate` (RemoteEl branch), `startClient` |
 | 27 | Iframes | A then B on each frame's text box → focus enters then leaves; no history back | Core: B inside frames asks the frame first | `back`, `askFrameBack` |
-| 28 | Iframes | Whole-screen graph → arrows cross frame borders | Core: frame elements are ordinary graph nodes | `related` (RemoteEl ancestry), `buildGraph` |
+| 28 | Iframes | Make a frame non-scrolling (devtools: shrink its content) → its elements navigate flat with the page; whole-screen graph arrows cross the frame border | Core: non-scrolling frames stay flattened; frame elements are ordinary graph nodes | `related` (RemoteEl ancestry), `buildGraph` |
+| 28a | Iframes | Focus the same-origin frame (not entered), right stick down → the frame's page scrolls | Guards E18 | right-stick branch in `tick`, `startClient` (`scroll`) |
+| 28b | Iframes | Enter the same-origin frame, ↓ to the text box, ↓ again → the frame scrolls, next ↓ reaches "Below the fold" | Guards E18: past the last visible item, an entered frame scrolls | `moveNow` (edge), `canScroll` (IFRAME), `startClient` (`scrollStep`) |
 
 ### Containers (cards)
 
@@ -221,6 +223,20 @@ enter, like TV app rows. *Where:* `addScrollBoxes`, `isScrollBox`,
 `isScrollContainer`, `enterOnA`, `canScroll`, `scrollTarget`, `moveNow` (edge),
 `layer`. *Checks:* 8, 22, 36–38.
 
+**E18. Scrolling iframes had no stop of their own.** After E17, a scrolling panel
+was one stop, but an iframe (which is also a scrolling area) stayed flattened:
+its elements mixed into the page, the frame couldn't be scrolled as a unit, and
+pressing past its visible part left the frame instead of scrolling it. *Fix:*
+frames report their document's scroll state with every snapshot; a frame whose
+page scrolls is a scroll container like any panel (one stop, right stick / LT / RT
+scroll it, A/X enters, past the last visible item the frame scrolls, B leaves).
+Frames that don't scroll stay flattened; frames without the script stay one
+plain element. Follow-up bug: an entered frame isn't in `scrollBoxes` (its
+elements replace it), so the edge check also accepts an `IFRAME` scope.
+*Where:* `candidatesNow` (frame loop), `applySnapshot` (`scroll`), `startClient`
+(`docScroll`, `scrollStep`), `canScroll`, `moveNow` (edge), `pageScroll`,
+right-stick branch in `tick`. *Checks:* 25, 28a, 28b.
+
 ### Test-harness pitfalls (not product bugs, but they cost time)
 
 - **Hidden or background pane**: `requestAnimationFrame` barely runs and
@@ -247,11 +263,14 @@ enter, like TV app rows. *Where:* `addScrollBoxes`, `isScrollBox`,
 
 ## Part 3 — Known limits
 
-- Frames: one level only; containers aren't detected inside frames; the
+- Frames: one level only; containers aren't detected inside frames (scrolling
+  frames themselves are containers, E18); the
   postMessage transport could be spoofed by a hostile embedding page (a hardened
   extension should use `runtime.getFrameId` plus extension messaging).
 - Typing into a cross-origin frame's text field may be refused by Chrome without
   a real click there.
+- Focusing a text field by navigation focuses it for typing, so B first leaves the
+  field and a second B leaves the container (same as on the top page).
 - Frames without the script (sandboxed, blocked) are one element.
 - Only content within about one screen is a direct target; farther content is
   reached by scrolling.

@@ -168,7 +168,14 @@
       if (modal && !modal.contains(iframe)) continue;
       if (scope ? !scope.contains(iframe) : insideContainer(iframe)) continue;
       const f = frameState(iframe);
-      if (f.hasClient) { for (const r of f.remotes.values()) if (remoteVisible(r)) all.push(r); }
+      if (f.hasClient && f.scroll?.scrollable && scope !== iframe) {
+        // A frame whose page scrolls is a scroll container like any panel: one stop until entered.
+        if (usable(iframe)) {
+          all.push(iframe);
+          scrollBoxes.add(iframe);
+          containerKids.set(iframe, [...f.remotes.values()].filter(remoteVisible).length);
+        }
+      } else if (f.hasClient) { for (const r of f.remotes.values()) if (remoteVisible(r)) all.push(r); }
       else if (usable(iframe)) all.push(iframe);
     }
     return all;
@@ -274,6 +281,11 @@
 
   // Room left to scroll el in a direction.
   function canScroll(el, dir) {
+    if (el.tagName === 'IFRAME') {
+      const s = frameState(el).scroll;
+      if (!s) return false;
+      return { down: s.top < s.maxTop - 1, up: s.top > 0, right: s.left < s.maxLeft - 1, left: s.left > 0 }[dir];
+    }
     return {
       down: el.scrollTop + el.clientHeight < el.scrollHeight - 1, up: el.scrollTop > 0,
       right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1, left: el.scrollLeft > 0,
@@ -426,6 +438,7 @@
 
   function applySnapshot(f, d) {
     f.hasClient = f.answered = true;
+    f.scroll = d.scroll;
     f.vw = d.vw || 1; f.vh = d.vh || 1;
     for (const r of f.remotes.values()) r.alive = false;
     const next = new Map();
@@ -483,6 +496,14 @@
       return id;
     };
     const send = (msg) => window.parent.postMessage({ gpn: PROTO, ...msg }, '*');
+    // Whether this frame's document scrolls, and how far it can go each way.
+    const docScroll = () => {
+      const se = document.scrollingElement || document.documentElement;
+      const hidden = (n) => n && /hidden|clip/.test(getComputedStyle(n).overflowY + getComputedStyle(n).overflowX);
+      const blocked = hidden(document.documentElement) && hidden(document.body);
+      const maxTop = se.scrollHeight - innerHeight, maxLeft = se.scrollWidth - innerWidth;
+      return { scrollable: !blocked && (maxTop > 1 || maxLeft > 1), top: scrollY, left: scrollX, maxTop, maxLeft };
+    };
     const plain = (r) => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
 
     // While the engine has focus here, report the element's rect (it moves when this frame scrolls) and if it vanishes.
@@ -508,7 +529,7 @@
           for (let n = el.parentElement; n; n = n.parentElement) if (set.has(n)) anc.push(idOf(n));
           return { id: idOf(el), rect: plain(el.getBoundingClientRect()), anc, text: el.matches(TEXT_LIKE) };
         });
-        send({ type: 'snapshot-reply', req: d.req, items, vw: innerWidth, vh: innerHeight });
+        send({ type: 'snapshot-reply', req: d.req, items, vw: innerWidth, vh: innerHeight, scroll: docScroll() });
       } else if (d.type === 'focus') {
         const el = byId.get(d.id);
         if (!el) return;
@@ -531,6 +552,10 @@
         scrollParent(engineEl, 'y').scrollBy(d.dx, d.dy);
       } else if (d.type === 'page') {
         scrollParent(engineEl, 'y').scrollBy({ top: innerHeight * 0.85 * d.sign, behavior: 'smooth' });
+      } else if (d.type === 'scrollStep') {
+        // Pressed past the last visible item while the frame is the scope: scroll the document on.
+        const horiz = d.dir === 'left' || d.dir === 'right', sign = d.dir === 'down' || d.dir === 'right' ? 1 : -1;
+        scrollBy({ [horiz ? 'left' : 'top']: (horiz ? innerWidth : innerHeight) * 0.6 * sign, behavior: 'smooth' });
       }
     });
   }
@@ -927,9 +952,11 @@
     if (!to) {
       // Inside a scope nothing else exists: scroll only if the container itself continues that way.
       const scope = activeScope();
-      if (scope && scrollBoxes.has(scope) && canScroll(scope, dir)) {
+      // (An entered frame isn't in scrollBoxes: its own elements replaced it in the candidates.)
+      if (scope && (scrollBoxes.has(scope) || scope.tagName === 'IFRAME') && canScroll(scope, dir)) {
         // Inside a scroll box: more content that way, so scroll the box rather than the page.
         scrolledAway = true;
+        if (scope.tagName === 'IFRAME') { postToFrame(frameState(scope), { type: 'scrollStep', dir }); return; }
         const horiz = dir === 'left' || dir === 'right', sign = dir === 'down' || dir === 'right' ? 1 : -1;
         scope.scrollBy({ [horiz ? 'left' : 'top']: (horiz ? scope.clientWidth : scope.clientHeight) * 0.6 * sign, behavior: 'smooth' });
         return;
@@ -992,6 +1019,7 @@
   function pageScroll(sign) {
     scrolledAway = true;
     if (current instanceof RemoteEl) { postToFrame(current.frame, { type: 'page', sign }); return; }
+    if (current?.tagName === 'IFRAME' && frameState(current).hasClient) { postToFrame(frameState(current), { type: 'page', sign }); return; }
     const t = scrollTarget('y');
     t.scrollBy({ top: (t === document.scrollingElement ? innerHeight : t.clientHeight) * 0.85 * sign, behavior: 'smooth' });
   }
@@ -1484,7 +1512,9 @@
       if (sx || sy) {
         scrolledAway = true;
         const curve = (v) => Math.sign(v) * v * v * SCROLL_SPEED;
-        if (current instanceof RemoteEl) postToFrame(current.frame, { type: 'scroll', dx: sx ? curve(sx) : 0, dy: sy ? curve(sy) : 0 });
+        const frameOfCurrent = current instanceof RemoteEl ? current.frame
+          : current?.tagName === 'IFRAME' && frameState(current).hasClient ? frameState(current) : null;
+        if (frameOfCurrent) postToFrame(frameOfCurrent, { type: 'scroll', dx: sx ? curve(sx) : 0, dy: sy ? curve(sy) : 0 });
         else {
           if (sy) scrollTarget('y').scrollBy(0, curve(sy));
           if (sx) scrollTarget('x').scrollBy(curve(sx), 0);

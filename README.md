@@ -68,6 +68,8 @@ docs/
 - **Frames**: the top frame is the engine; each iframe runs the same script as a
   client that reports its elements (postMessage) and executes commands. Frame
   elements become proxies with translated rects, so all logic treats them alike.
+  A frame whose page scrolls is a container (one stop, enter with A/X); frames
+  that don't scroll are flattened into the page.
 - **Recovery**: if the focused element vanishes or is scrolled away, focus lands
   on the nearest visible element in the same scroll area.
 
