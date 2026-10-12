@@ -1,14 +1,14 @@
-// Gamepad spatial navigation: D-pad / left stick moves a focus ring between
+// SofaNav: gamepad spatial navigation. D-pad / left stick moves a focus ring between
 // interactive elements by on-screen geometry (like a console UI), not a cursor.
 (() => {
-  if (window.__gamepadNav) return;
-  window.__gamepadNav = true;
+  if (window.__sofanavLoaded) return;
+  window.__sofanavLoaded = true;
   // In a frame this script is only a client: it reports its elements to the
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
   const BUILD = 'dev';
-  if (!IS_FRAME) console.info('[webpad] build', BUILD);
+  if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
   // Standard-mapping button indexes.
   const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
@@ -401,7 +401,7 @@
   // the stick pie, focus recovery and the ring treat them like any element.
   // Prototype limits: one level of frames, postMessage transport.
 
-  const PROTO = 'gpn-1';
+  const PROTO = 'sofanav.mmis1000.me/1'; // tags our postMessage traffic between frames
   const FRAME_TIMEOUT = 60; // ms to wait for frames to answer a snapshot request
 
   class RemoteEl {
@@ -436,7 +436,7 @@
   }
 
   function postToFrame(f, msg) {
-    try { f.iframe.contentWindow?.postMessage({ gpn: PROTO, ...msg }, '*'); } catch {}
+    try { f.iframe.contentWindow?.postMessage({ sofanav: PROTO, ...msg }, '*'); } catch {}
   }
 
   // Frame-viewport rect -> top viewport rect, clipped to the iframe's content box.
@@ -543,7 +543,7 @@
   // Replies from clients. Only messages from our own child frames are accepted.
   if (!IS_FRAME) addEventListener('message', (e) => {
     const d = e.data;
-    if (!d || d.gpn !== PROTO) return;
+    if (!d || d.sofanav !== PROTO) return;
     const f = frameOfSource(e.source);
     if (!f) return;
     if (d.type === 'snapshot-reply') pending.get(d.req)?.(f, d);
@@ -580,7 +580,7 @@
       byId.set(id, el);
       return id;
     };
-    const send = (msg) => window.parent.postMessage({ gpn: PROTO, ...msg }, '*');
+    const send = (msg) => window.parent.postMessage({ sofanav: PROTO, ...msg }, '*');
     // Whether this frame's document scrolls, and how far it can go each way.
     const docScroll = () => {
       const se = document.scrollingElement || document.documentElement;
@@ -603,7 +603,7 @@
 
     addEventListener('message', (e) => {
       const d = e.data;
-      if (!d || d.gpn !== PROTO || e.source !== window.parent) return;
+      if (!d || d.sofanav !== PROTO || e.source !== window.parent) return;
       if (d.type === 'snapshot') {
         topViewportArea = d.vpArea || null;
         byId = new Map();
@@ -1306,7 +1306,7 @@
     const defs = document.createElementNS(SVG_NS, 'defs');
     for (const [dir, color] of Object.entries(VIZ_COLORS)) {
       const m = document.createElementNS(SVG_NS, 'marker');
-      Object.entries({ id: 'gpn-arrow-' + dir, viewBox: '0 0 10 10', refX: 9, refY: 5,
+      Object.entries({ id: 'sofanav-arrow-' + dir, viewBox: '0 0 10 10', refX: 9, refY: 5,
         markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' }).forEach(([k, v]) => m.setAttribute(k, v));
       const p = document.createElementNS(SVG_NS, 'path');
       p.setAttribute('d', 'M0,0 L10,5 L0,10 z');
@@ -1340,7 +1340,7 @@
     const line = document.createElementNS(SVG_NS, 'line');
     // Element opacity (not stroke-opacity) so the arrowhead marker fades too.
     Object.entries({ x1, y1, x2, y2, stroke: VIZ_COLORS[dir], 'stroke-width': width, opacity,
-      'marker-end': `url(#gpn-arrow-${dir})` }).forEach(([k, v]) => line.setAttribute(k, v));
+      'marker-end': `url(#sofanav-arrow-${dir})` }).forEach(([k, v]) => line.setAttribute(k, v));
     if (via === 'rescued') line.setAttribute('stroke-dasharray', '6 4');
     if (via === 'return') { line.setAttribute('stroke-dasharray', '1 6'); line.setAttribute('stroke-linecap', 'round'); }
     vizLayer.append(line);
@@ -1562,8 +1562,8 @@
 
   if (IS_FRAME) { startClient(); return; }
 
-  // Test pages can set window.__gpnDebug before loading this script to inspect state.
-  if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
+  // Test pages can set window.__sofanavDebug before loading this script to inspect state.
+  if (window.__sofanavDebug) window.__sofanav = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
   // Menu (☰) or Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
   async function debugReport() {
@@ -1594,13 +1594,13 @@
         targets[dir] = e ? { to: brief(e.to), via: e.via, el: e.to } : null;
       }
     }
-    console.info('[webpad] debug', {
+    console.info('[sofanav] debug', {
       build: BUILD, url: location.href, current: describe(current), currentIsStop: list.includes(current), targets,
       lastMove: lastMove && { from: brief(lastMove.from), angle: Math.round(lastMove.angle) },
       scopes: scopes.map(describe), modal: describe(activeModal()), stops: list.length, scrolledAway,
       lastRect: lastRect && [lastRect.left, lastRect.top, lastRect.width, lastRect.height].map(Math.round),
     });
-    say('webpad debug info written to the console');
+    say('SofaNav debug info written to the console');
   }
 
   addEventListener('scroll', scheduleViz, { passive: true, capture: true });
@@ -1724,7 +1724,7 @@
     if (pressed(BTN.VIEW)) {
       enabled = !enabled;
       if (!enabled) hideRing();
-      say(`Gamepad navigation ${enabled ? 'ON' : 'OFF'} · build ${BUILD}`);
+      say(`SofaNav ${enabled ? 'ON' : 'OFF'} · build ${BUILD}`);
     }
 
     if (enabled && !document.hidden) {

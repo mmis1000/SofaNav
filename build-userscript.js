@@ -1,8 +1,8 @@
-// Builds dist/gamepad-nav.user.js from extension/content.js.
+// Builds dist/sofanav.user.js from extension/content.js.
 // Usage: node build-userscript.js   (npm run build)
 //
 // The build is stamped with a hash of content.js so you can tell which copy is
-// running (console: "[webpad] build <hash>", the View on/off toast, the
+// running (console: "[sofanav] build <hash>", the View on/off toast, the
 // description, and a "// Build <hash>" comment after the metadata block, kept
 // out of the block itself because @build isn't a userscript key). The
 // @version gets a UTC timestamp suffix (0.3.0.202610121930) so userscript
@@ -13,7 +13,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const srcPath = path.join(__dirname, 'extension', 'content.js');
-const outPath = path.join(__dirname, 'dist', 'gamepad-nav.user.js');
+const outPath = path.join(__dirname, 'dist', 'sofanav.user.js');
 // Normalized to LF so the hash is the same on every checkout (git stores LF, Windows editors may write CRLF).
 const src = fs.readFileSync(srcPath, 'utf8').replace(/\r\n/g, '\n');
 const { version } = JSON.parse(fs.readFileSync(path.join(__dirname, 'extension', 'manifest.json'), 'utf8'));
@@ -34,8 +34,8 @@ if (fs.existsSync(outPath)) {
 stamp ??= new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12); // UTC yyyymmddhhmm
 
 const header = `// ==UserScript==
-// @name         Gamepad Spatial Navigation
-// @namespace    gamepad-spatial-nav
+// @name         SofaNav
+// @namespace    https://sofanav.mmis1000.me
 // @version      ${version}.${stamp}
 // @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build ${hash})
 // @match        *://*/*

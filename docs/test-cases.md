@@ -96,7 +96,7 @@ section heading on that page.
 
 | # | Where | Steps → Expected | Why it exists | Code |
 |---|---|---|---|---|
-| 39 | test/stress.html | In the console, time `__gpn.candidates()` and `__gpn.buildGraph(list)` → only ~100 near-screen elements processed; tens of ms | Guards E15: cost must not grow with page size | `nearViewport`, `candidatesNow`, `shadowHosts`, `buildGraph` (plain rects) |
+| 39 | test/stress.html | In the console, time `__sofanav.candidates()` and `__sofanav.buildGraph(list)` → only ~100 near-screen elements processed; tens of ms | Guards E15: cost must not grow with page size | `nearViewport`, `candidatesNow`, `shadowHosts`, `buildGraph` (plain rects) |
 | 40 | Twitter / long feeds | Graph view on, scroll → no sustained lag | Guards E15 on the real site it was reported on | as above, plus `findNext`/`castRay` (score before `related`), `updateHud` (change check) |
 
 Checks marked *automated* run with `npm run test:regress` (Playwright; test server
@@ -294,7 +294,7 @@ there), so `test/chat-frame.html` reproduces its structure. *Where:*
 **E23. Userscript updates were invisible.** Every build said `@version 0.2.0`, so
 userscript managers never offered the new code as an update, and there was no
 way to tell which build was running. *Fix:* the build stamps the userscript
-with a hash of `content.js` (the description, a `// Build` comment, a `[webpad] build …`
+with a hash of `content.js` (the description, a `// Build` comment, a `[sofanav] build …`
 console line and the View toast) and a monotonic `@version 0.3.0.<UTC
 timestamp>`, kept unchanged when the code hasn't changed. *Where:*
 `build-userscript.js`, `BUILD` in `content.js`.

@@ -31,8 +31,8 @@ const helpers = (page) => {
       const el = document.querySelector(sel);
       el.scrollIntoView({ block: 'center' });
       await new Promise((r) => setTimeout(r, 300));
-      await __gpn.refreshFrames(); await __gpn.refreshFrames();
-      __gpn.focus(el);
+      await __sofanav.refreshFrames(); await __sofanav.refreshFrames();
+      __sofanav.focus(el);
     }, selector),
   };
 };
@@ -47,7 +47,7 @@ const checks = {
     await wait(300);
     const pageY0 = await page.evaluate(() => scrollY);
     await press('Enter'); // A enters the frame
-    const scopes = await page.evaluate(() => __gpn.scopes().map((s) => s.id));
+    const scopes = await page.evaluate(() => __sofanav.scopes().map((s) => s.id));
     for (let i = 0; i < 3; i++) await press('ArrowDown', 700);
     const r = await page.evaluate(() => ({ frameY: document.getElementById('sparseFrame').contentWindow.scrollY, pageY: scrollY }));
     const detail = `scopes=${scopes} frame scrollY=${r.frameY} page scrollY ${pageY0}→${r.pageY}`;
@@ -58,7 +58,7 @@ const checks = {
   async 'E20 B closes a native showModal() dialog'(page) {
     const { press, wait } = helpers(page);
     await press('ArrowUp');
-    await page.evaluate(() => { document.getElementById('dlg').showModal(); __gpn.focus(document.getElementById('ok')); });
+    await page.evaluate(() => { document.getElementById('dlg').showModal(); __sofanav.focus(document.getElementById('ok')); });
     await wait(300);
     await press('Backspace');
     const open = await page.evaluate(() => document.getElementById('dlg').open);
@@ -72,16 +72,16 @@ const checks = {
     const before = await page.evaluate(async () => {
       const f = document.getElementById('navFrame');
       f.scrollIntoView({ block: 'center' });
-      await __gpn.refreshFrames(); await __gpn.refreshFrames();
-      return __gpn.frameState(f).hasClient;
+      await __sofanav.refreshFrames(); await __sofanav.refreshFrames();
+      return __sofanav.frameState(f).hasClient;
     });
     await page.evaluate(() => document.getElementById('swapFrame').click());
     await wait(800);
     const after = await page.evaluate(async () => {
       const f = document.getElementById('navFrame');
-      await __gpn.refreshFrames(); await __gpn.refreshFrames();
-      const c = __gpn.candidates();
-      return { hasClient: __gpn.frameState(f).hasClient, frameIsElement: c.includes(f),
+      await __sofanav.refreshFrames(); await __sofanav.refreshFrames();
+      const c = __sofanav.candidates();
+      return { hasClient: __sofanav.frameState(f).hasClient, frameIsElement: c.includes(f),
         staleProxies: c.filter((e) => !e.tagName && e.frame.iframe === f).length };
     });
     const detail = `before hasClient=${before}; after hasClient=${after.hasClient} plain=${after.frameIsElement} stale proxies=${after.staleProxies}`;
@@ -99,20 +99,20 @@ const checks = {
       f.scrollIntoView({ block: 'center' });
       f.contentDocument.getElementById('item-scroller').scrollTop = 1e6;
       await new Promise((r) => setTimeout(r, 300));
-      await __gpn.refreshFrames(); await __gpn.refreshFrames();
-      __gpn.focus([...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Before chats'));
+      await __sofanav.refreshFrames(); await __sofanav.refreshFrames();
+      __sofanav.focus([...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Before chats'));
     });
     const listTop = () => page.evaluate(() => document.getElementById('chatMenus').contentDocument.getElementById('item-scroller').scrollTop);
-    const atList = () => page.evaluate(() => { const c = __gpn.current(); return !!c && !c.tagName && c.frame.iframe.id === 'chatMenus' && __gpn.isScrollContainer(c); });
+    const atList = () => page.evaluate(() => { const c = __sofanav.current(); return !!c && !c.tagName && c.frame.iframe.id === 'chatMenus' && __sofanav.isScrollContainer(c); });
     for (let i = 0; i < 3 && !(await atList()); i++) await press('ArrowRight');
     const onList = await atList();
     await press('Enter'); // A enters the list
-    const entered = await page.evaluate(() => __gpn.scopes().length === 1);
+    const entered = await page.evaluate(() => __sofanav.scopes().length === 1);
     const before = await listTop();
     for (let i = 0; i < 12; i++) await press('ArrowUp', 350);
     const after = await listTop();
     await press('Backspace');
-    const back = await page.evaluate(() => __gpn.scopes().length === 0) && await atList();
+    const back = await page.evaluate(() => __sofanav.scopes().length === 0) && await atList();
     return { ok: onList && entered && after < before - 50 && back, detail: `list stop=${onList} entered=${entered} list scrollTop ${Math.round(before)}→${Math.round(after)} B back on list=${back}` };
   },
 
@@ -124,12 +124,12 @@ const checks = {
       const h = [...document.querySelectorAll('h2')].find((x) => x.textContent.startsWith('Live chat frames'));
       scrollTo({ top: h.getBoundingClientRect().top + scrollY - 60 });
       await new Promise((r) => setTimeout(r, 300));
-      await __gpn.refreshFrames(); await __gpn.refreshFrames();
-      __gpn.focus([...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Before chats'));
+      await __sofanav.refreshFrames(); await __sofanav.refreshFrames();
+      __sofanav.focus([...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Before chats'));
     });
     await wait(300);
     await press('ArrowRight');
-    const stop = await page.evaluate(() => { const c = __gpn.current(); return !!c && !c.tagName && c.frame.iframe.id === 'chatPlain' && __gpn.isScrollStop(c); });
+    const stop = await page.evaluate(() => { const c = __sofanav.current(); return !!c && !c.tagName && c.frame.iframe.id === 'chatPlain' && __sofanav.isScrollStop(c); });
     const top = () => page.evaluate(() => document.getElementById('chatPlain').contentDocument.getElementById('item-scroller').scrollTop);
     const t0 = await top();
     await page.evaluate(() => (virtualPad.axes = [0, 0, 0, -0.9])); await wait(600); await page.evaluate(() => (virtualPad.axes = [0, 0, 0, 0])); await wait(300);
@@ -146,12 +146,12 @@ const checks = {
       const feed = document.querySelector('.feed');
       feed.scrollIntoView({ block: 'center' });
       await new Promise((r) => setTimeout(r, 300));
-      __gpn.focus(feed); // simulate the desync: focus on a wrapper that isn't a stop
+      __sofanav.focus(feed); // simulate the desync: focus on a wrapper that isn't a stop
     });
     await wait(300);
     await press('ArrowDown');
     const r = await page.evaluate(() => {
-      const c = __gpn.current();
+      const c = __sofanav.current();
       const card = c?.closest?.('[data-post]');
       return { card: card?.dataset.post || null, what: c ? (c.className || c.tagName) + ' ' + (c.textContent || '').trim().slice(0, 20) : 'none' };
     });
@@ -167,8 +167,8 @@ const checks = {
       const box = document.getElementById('comments');
       box.scrollIntoView({ block: 'center' });
       await new Promise((r) => setTimeout(r, 300));
-      __gpn.candidates();
-      __gpn.focus(box);
+      __sofanav.candidates();
+      __sofanav.focus(box);
     });
     await wait(400);
     const r = await page.evaluate(() => {
@@ -189,15 +189,15 @@ const checks = {
       const b = document.getElementById('spaBack');
       b.scrollIntoView({ block: 'start' });
       await new Promise((r) => setTimeout(r, 300));
-      __gpn.candidates();
-      __gpn.focus(b);
+      __sofanav.candidates();
+      __sofanav.focus(b);
     });
     await wait(300);
     await press('Enter', 100); // A on "Back": the page "navigates"
     await wait(2500); // timeline fills in after 700 ms
     const r = await page.evaluate(() => {
-      const c = __gpn.current();
-      return { tag: c?.tagName, id: c?.id || '', text: (c?.textContent || '').trim().slice(0, 16), isStop: __gpn.candidates().includes(c) };
+      const c = __sofanav.current();
+      return { tag: c?.tagName, id: c?.id || '', text: (c?.textContent || '').trim().slice(0, 16), isStop: __sofanav.candidates().includes(c) };
     });
     const onPlaceholder = r.id === 'spaTimeline';
     return { ok: !onPlaceholder && r.isStop, detail: `focus: ${r.tag}${r.id ? '#' + r.id : ''} "${r.text}" stop=${r.isStop}` };
@@ -211,12 +211,12 @@ const checks = {
       const post = document.getElementById('nmPost');
       post.scrollIntoView({ block: 'center' });
       await new Promise((r) => setTimeout(r, 300));
-      __gpn.candidates();
-      __gpn.focus(post);
+      __sofanav.candidates();
+      __sofanav.focus(post);
     });
     await wait(300);
     await press('ArrowUp');
-    const id = await page.evaluate(() => __gpn.current()?.id);
+    const id = await page.evaluate(() => __sofanav.current()?.id);
     return { ok: id === 'nmReply', detail: `↑ from the post → ${id}` };
   },
 };

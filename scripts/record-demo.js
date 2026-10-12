@@ -1,6 +1,6 @@
 // Records a demo video of the test page being driven by a (virtual) controller.
 // Usage: npm run serve   (in another terminal), then: npm run demo
-// Output: demo/webpad-demo.webm (+ .mp4 if ffmpeg is installed)
+// Output: demo/sofanav-demo.webm (+ .mp4 if ffmpeg is installed)
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -84,17 +84,17 @@ const SIZE = { width: 1280, height: 720 };
       scrollTo({ top: h.getBoundingClientRect().top + scrollY - off });
       // Let iframes report in before the first move (recording slows them down).
       await new Promise((r) => setTimeout(r, 200));
-      await __gpn.refreshFrames(); await __gpn.refreshFrames();
+      await __sofanav.refreshFrames(); await __sofanav.refreshFrames();
       const el = sel.startsWith('text=')
         ? [...document.querySelectorAll('button, a')].find((x) => x.textContent.trim() === sel.slice(5))
         : document.querySelector(sel);
-      __gpn.focus(el);
+      __sofanav.focus(el);
     }, [startsWith, selector, offset]);
     await wait(500);
   };
 
   const focused = () => page.evaluate(() => {
-    const el = __gpn.current();
+    const el = __sofanav.current();
     if (!el) return 'none';
     if (!el.tagName) return `frame ${el.frame.iframe.id}#${el.id}`;
     return (el.id || el.getAttribute('aria-label') || el.textContent.trim().slice(0, 20) || el.tagName);
@@ -102,7 +102,7 @@ const SIZE = { width: 1280, height: 720 };
   const log = async (step) => console.log(step.padEnd(28), '→', await focused());
 
   // ---------------- the demo ----------------
-  await caption('webpad — console-style controller navigation for any web page');
+  await caption('SofaNav — console-style controller navigation for any web page');
   await wait(1800);
 
   await section('Store layout', '.install', 60);
@@ -168,7 +168,7 @@ const SIZE = { width: 1280, height: 720 };
   await presses('ArrowRight', 4, 650); await log('→ x4 through the flat frame');
   await wait(500);
 
-  await caption('webpad — D-pad, free-aim stick, cards, scroll panels, iframes');
+  await caption('SofaNav — D-pad, free-aim stick, cards, scroll panels, iframes');
   await wait(2000);
 
   // ---------------- save ----------------
@@ -176,11 +176,11 @@ const SIZE = { width: 1280, height: 720 };
   await context.close();
   await browser.close();
   const raw = await video.path();
-  const webm = path.join(OUT_DIR, 'webpad-demo.webm');
+  const webm = path.join(OUT_DIR, 'sofanav-demo.webm');
   fs.renameSync(raw, webm);
   console.log('saved', path.relative(process.cwd(), webm));
   try {
-    const mp4 = path.join(OUT_DIR, 'webpad-demo.mp4');
+    const mp4 = path.join(OUT_DIR, 'sofanav-demo.mp4');
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '23', mp4]);
     console.log('saved', path.relative(process.cwd(), mp4));
   } catch {

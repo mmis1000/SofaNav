@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Gamepad Spatial Navigation",
+  "name": "SofaNav",
   "version": "0.3.0",
   "description": "Navigate any web page with a controller: D-pad moves focus between elements, A clicks, B goes back.",
   "background": {
@@ -24,7 +24,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "gamepad-spatial-nav@local"
+      "id": "sofanav@mmis1000.me"
     }
   }
 }

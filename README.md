@@ -1,4 +1,4 @@
-# webpad
+# SofaNav
 
 Console-style controller navigation for any web page. The D-pad and left stick
 move a focus ring between links and buttons by their position on screen (like
@@ -14,8 +14,8 @@ extension/            the extension; content.js is the single source for everyth
   manifest.json       MV3, runs in all frames
   background.js       LB/RB tab switching (extension only)
   content.js          all navigation logic (engine in the top frame, client in iframes)
-build-userscript.js   builds dist/gamepad-nav.user.js from extension/content.js
-scripts/record-demo.js records demo/webpad-demo.mp4 with Playwright
+build-userscript.js   builds dist/sofanav.user.js from extension/content.js
+scripts/record-demo.js records demo/sofanav-demo.mp4 with Playwright
 dist/                 generated userscript (do not edit)
 test/
   index.html          main test page, one section per behaviour / past bug
@@ -31,12 +31,12 @@ docs/
   Load unpacked → pick `extension/`. Firefox: `about:debugging` → Load Temporary
   Add-on → `extension/manifest.json`.
 - **Userscript**: `npm run build` (or `node build-userscript.js`), then install
-  `dist/gamepad-nav.user.js` in Tampermonkey/Violentmonkey. LB/RB do nothing there.
+  `dist/sofanav.user.js` in Tampermonkey/Violentmonkey. LB/RB do nothing there.
   Each build is stamped with a hash of `content.js` (shown in the
-  description and a `// Build <hash>` comment under the header, logged as `[webpad] build …` in the console, and in the View
+  description and a `// Build <hash>` comment under the header, logged as `[sofanav] build …` in the console, and in the View
   on/off toast) and gets a newer `@version` whenever the code changed, so the
   manager offers it as an update.
-- **Quick try on any page**: paste `dist/gamepad-nav.user.js` into the DevTools console.
+- **Quick try on any page**: paste `dist/sofanav.user.js` into the DevTools console.
 
 ## Controls
 
@@ -100,13 +100,13 @@ Then open http://localhost:8765/test/ (the cross-origin frame loads from
   J/L rotate aim + K = push stick at aim.
 - `?timer` drives polling with a timer instead of animation frames (for automated
   runs in a background tab).
-- The test pages set `window.__gpnDebug = true`, which exposes `window.__gpn`
+- The test pages set `window.__sofanavDebug = true`, which exposes `window.__sofanav`
   (`candidates()`, `buildGraph()`, `current()`, `scopes()`, `focus(el)`,
   `state()`, ...) for inspection and scripted tests.
 
 ## Demo video
 
-[demo/webpad-demo.mp4](demo/webpad-demo.mp4) (≈60 s): D-pad, graph view, stick
+[demo/sofanav-demo.mp4](demo/sofanav-demo.mp4) (≈60 s): D-pad, graph view, stick
 pie, post cards, a scrollable comments panel, scrolling iframes (same- and
 cross-origin) as containers, and a non-scrolling iframe whose buttons belong to
 the page.
@@ -121,5 +121,5 @@ npm run demo
 
 `scripts/record-demo.js` drives the test page with Playwright through the
 keyboard stand-in and the virtual stick, adds captions and an input badge, and
-writes `demo/webpad-demo.webm` plus an `.mp4` if ffmpeg is installed.
+writes `demo/sofanav-demo.webm` plus an `.mp4` if ffmpeg is installed.
 `VERBOSE=1 npm run demo` logs where focus lands after every press.
