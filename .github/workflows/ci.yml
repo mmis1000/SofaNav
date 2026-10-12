@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Userscript build is up to date
+        run: |
+          npm run build
+          if ! git diff --quiet -- dist/; then
+            git diff --stat -- dist/
+            echo "::error::dist/sofanav.user.js is stale: run 'npm run build' and commit it"
+            exit 1
+          fi
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Start test server
+        run: |
+          python3 -m http.server 8765 >/tmp/server.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf http://localhost:8765/test/ >/dev/null && exit 0; sleep 0.5; done
+          echo "::error::test server did not start"; cat /tmp/server.log; exit 1
+
+      - name: Regression checks (docs/test-cases.md)
+        run: npm run test:regress
+
+  site:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build site
+        run: npm run build && npm run site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    # Only main branch pushes publish; pull requests just build the site.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: site
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

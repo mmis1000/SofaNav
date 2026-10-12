@@ -2,6 +2,10 @@
 
 ![vibes coded](https://img.shields.io/badge/vibes-coded-ff69b4.svg?logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAJzUlEQVR4nOSbfXAUZx3Hv8%2Fu3l1yd0kIeYFUYAjUpqWWtpqkQAtSYmkhgNaBYodWqVN07NjRaZmOZbRlxnFQO8W3Gf%2FQWmxtaykv1fJSHAlVURDTUsRKCRFIAQOEt1xCci%2B7%2Bzz%2Bdi%2B53CW55PbuWQLjZ%2Bayz%2B6z%2B%2BzzfPd5%2BT2%2F54mG%2F3MUXAOId6DBJa56AUTrp%2Fy8okYXFx74I1zAFQEi2zG5ezt%2BCxl0KyX20YjOgAu4IoBh4lHOcS9kwLyL40fmhQu41QSW0m8UJCAM%2FXP2MRbRRPMdUyAZ6QK0vYEgGCopyDrewqPIAdF8vU8IMav3nHsDD0My0gXw%2BTA2kbiCbyIXtHHFibAehlJQ%2FnVIRroAqobaxImwa0L2hC%2BX9rsSFB9MkdoXyO8DBB5JhBl8yAWf7%2FOJZGOReKB0nAcSkSpA%2B1ZYVfbTSZfUzm14Flli6tH6vjMRP8RMqR2hFAurdQv8RQrmUBZXUj5TvhATWN25FYqmYl3%2BPLRkmqbYMz2fw6gdEOELLqe%2FjZAEQ5aEtqBWVZSlQvBpVMjbKaX8DB47QZViN4O5y38Or7FHEEl3ozhSPYlzdhRJWVXKJ1mB02z069dBElk3AY3hYQj%2BBCk4I8PCW0ygir2MA8%2B1j%2BobLQaFsfFpYipE2%2BwgJJG1AIEFeFxlmMgFVlHV3zvsAwIX6Ou%2FanLMDwYwpvj%2BoZsDF%2Bye%2Fgkk8FcEIImsm0B%2FIg1Fk%2FVwaC0luCglQiAmGB4K1mMTY%2BCZpmcerjlAh1uTrynlk%2BMBIzyLlf9%2BNyQgbRTIqwsdDXdjGQkQTr4uBOYVLMAGJ4UXJ6dbTerWdPHcMFdAElKHwfIHcJkKvDnpkl6wCLvglA5j0lDRSl7gPkhCviUYCKxLOo0gGzR2w6DXjd7kWJlonV0KCUgXQHR1He4NU7V%2FDVlgqp7HBk07ltS6fMUfhwSkC5BfgTY6GPQTpoEfwSGiec5kZsQ%2BM2hksgDwvgAJnbh0AVg1dMrVWxTsLvwsmuAQjq6vpYuza4DoGQ4ZmyIuLr0ZOeKOQyS%2F8AUa%2FkJwiGiePQ4mfzLzB%2FBj5IgrAvjrOna0hJ1Phclk%2BNXw9yQZRIzViUtfuB85IM0QyhWzqeZbVLY1w93HgqPB%2FMVJFxCj3qaajd7wL2TBVeEWp8I%2FTW37e5ncK7ou9fUD9gWQg0TdI9qXfhJZMKI1QByfmCdiZVvJ73c3ZSXjjzGgFsTpIjvhaVb%2Bu5%2FBASMiQGjPlNGB4sAashMs73ERsiCNCFQ5eBMz9O%2ByMW%2B%2BmlE6uEJ07LuxJL%2Bo4BsqUE8dGQ1fLDd3mYXmBcsrAMsvHFiBBD9PpduLjosvsYk7N6VLwlUBREttJY%2BYjzFFvYuqeQ21VxVuoVDSqsc%2BMq%2BfxPGAeXrdFKKTqgbNHvlGdLPX2fgNCYvKFQHE0Zl13NTXgptTMdL0iALNB2bVGE0zwdQGlGkLGdsQc%2BwTNJtqn%2BfBsrc9H9u2M%2B09euT7pOzIF97C1OM%2FPWJbEPRThR6Zyy%2Bp1nS70ZEA4sPaEi7EE6rmnUunt6S7T1WwQgj2PFX7ORhhKA%2B0vBaFiFyGGaaWEO48w01je%2BCkaTlcnDUBo3naMmaar7CS8WChkxPY9Y0nh3z5makBs927VGHKEsqI5eJyrw%2FofSd9bR7tBqcC8%2B4OCndZ%2FrWzFLWNqdgYmI%2B3k%2B93VAOYadxna2aaQEklfd3Gl4a8f%2BxBejtetH7tB28pLvDmr6ChbyGJcQddk7LAYU057cJSQXl3iMJdvVEXqbr%2FWRFYF1iILemed1QDeFPNPqpRtaywHEL1vqyOefNLyAJxvGYs19VV5Nv6ImUhKzuA61GY7adhhM6lpi3QRH3eWvrSv8gkHUcCmB9Wn6MJSCkL2EbIaVaSm3%2F%2B4ruTigoLSjbQusI9Tp7jkU5E%2F9uUahKT94ksgaf8C%2BDIEszY%2FAz%2Fc2qlVXj7RJiWdBXi6J0TkAOjq4%2BFtKrGuTQ2rbEsl0yeEYaO6KkBhe%2Bk%2FEx3WniLjAXw%2BvrcVFYmbEaNnw4JqFV7V9HY%2FINM7o2eOoTkNQLqU3SSbjq53Q8gCzISgMRmZGr2bU4wewQQxmJIQq3at4ra47sYMh%2FWkBZLvebJ%2BzJ5nv%2BNLMmsBhypeZFEH5M4twSwqqCiLRYf1UlbrWVFJUus1NPFGxdPpd7PsC84N%2FIKcmBYAcSxmYtp%2BWv5gOtkXNgESzdDEqxiRwtZUc%2BlizcunUk5J4Mrq1EomSEFMA5X%2F4HHwm8MFic62uIBxqrIOdkmWmbdBAkoimfdoO9L7fSsr%2F9%2B3jznTtf%2BDBgGRdMNpZwXNtAbLL%2F70Ku%2BNAVlhWU0sbUXa03qyE8gdPopNmn3RuQAb6reTab0XSn54hyRY%2B8lnaMuq1WnfiQEEMdmPCRi%2BjOks%2FMFB2suTp%2FEmnnZ83NvXgiK9z1Ezz%2FLrtv5VzhENNcu4aZIqXn9BaBmWVa4EOeRI7YA%2FHDtNupf50MmligKGaLcWK9WNT7o5FFxqPoTXGEpTk7BTRJgfzxpcn%2F561FAmgvkiBbPq7KSEmvlpul4X59lg5sd58GtTUwi3oELM36kdP%2BWP%2FG2b8MpBZ6j6DLSRlN3sElG4S1S%2BgDLSWl0F9%2BpefMe5NxYPpwHRz9%2FAkb72f4p7qJv%2F3Phwd7AXLQiS8js3k%2FN6vZE3mjSEzn%2Bvh2m1jCzcBEcN63BSJkNssoW%2BowtDRRsEMdvW8l135Pk1Vk1mMfWCLUlF96gz%2FFDape%2FLlqAZshAUbdQve8TgJtJUfgPJJF2OswqD7TT4TuiqeYDcoK8bO1aTo5PKvwZxlEfXIT9kAg3Yw2Koj3Tey5iiWkuAhrZ%2FpIY1hBiVY3rabKSMrW0zFFyK8XjFXwlILnwFprfczL1nXpv8Cy7F12QREamsFr198fp0NaXmR57nKGR5t1b4AataorZJ%2FSedwqsh0Qyng1yRUn8A4TVIfUgzQzuD5uxN0zu9ERHZ3l9LKj9y%2FlHjB4yFkDjvp%2F0hoUenwcoPHdLbCjIh9cncE8nSCNuVoug6ch8Pe7Gvxynw2n7hOxQGj8v%2BxfiH3CRWNRI%2FJ8Q79kdciqMGCTiaHWYMeWYnRmrExT2LhBX8eYV2Q6%2FpIlQe%2FVXoUMijgTg3IxbIiQAWWKuVn%2BbjxouIMk%2FQDL8FJJxuD%2BAvWNnhIYkk0HKTs0h33Y3GViCLL54DRBq6dRfQjKOBNBuatxsdQCKohwqrMcRXAl8gd9YB6pxhn%2FawVOQjOMdIooveLNvwpisdmNkg6pf2mFVfrL%2Fo3ABx4ujrPJPh3El8RZfAK34aKo7Te6q2SQ1FGI1FLY6883WTrgmBHAT1%2F4r%2B1rhfwAAAP%2F%2Fnz6m%2BQAAAAZJREFUAwB9BJqESUWeWgAAAABJRU5ErkJggg%3D%3D)
 
+[![CI](https://github.com/mmis1000/SofaNav/actions/workflows/ci.yml/badge.svg)](https://github.com/mmis1000/SofaNav/actions/workflows/ci.yml)
+
+**Website, live demo and one-click install: https://mmis1000.github.io/SofaNav/**
+
 Console-style controller navigation for any web page. The D-pad and left stick
 move a focus ring between links and buttons by their position on screen (like
 an Xbox/TV app), not a mouse cursor.
@@ -18,6 +22,10 @@ extension/            the extension; content.js is the single source for everyth
   content.js          all navigation logic (engine in the top frame, client in iframes)
 build-userscript.js   builds dist/sofanav.user.js from extension/content.js
 scripts/record-demo.js records demo/sofanav-demo.mp4 with Playwright
+scripts/regressions.js automated regression checks (npm run test:regress)
+scripts/build-site.js  assembles the website into _site/ (npm run site)
+site/                  the website / landing page (runs SofaNav itself)
+.github/workflows/     CI: build check + regression checks, then deploys the website
 dist/                 generated userscript (do not edit)
 test/
   index.html          main test page, one section per behaviour / past bug
@@ -32,8 +40,9 @@ docs/
 - **Extension**: `chrome://extensions` (or `edge://extensions`) → Developer mode →
   Load unpacked → pick `extension/`. Firefox: `about:debugging` → Load Temporary
   Add-on → `extension/manifest.json`.
-- **Userscript**: `npm run build` (or `node build-userscript.js`), then install
-  `dist/sofanav.user.js` in Tampermonkey/Violentmonkey. LB/RB do nothing there.
+- **Userscript**: install from the website (https://mmis1000.github.io/SofaNav/sofanav.user.js;
+  Tampermonkey/Violentmonkey pick it up and keep it updated), or build it yourself:
+  `npm run build`, then install `dist/sofanav.user.js`. LB/RB do nothing there.
   Each build is stamped with a hash of `content.js` (shown in the
   description and a `// Build <hash>` comment under the header, logged as `[sofanav] build …` in the console, and in the View
   on/off toast) and gets a newer `@version` whenever the code changed, so the
@@ -125,3 +134,16 @@ npm run demo
 keyboard stand-in and the virtual stick, adds captions and an input badge, and
 writes `demo/sofanav-demo.webm` plus an `.mp4` if ffmpeg is installed.
 `VERBOSE=1 npm run demo` logs where focus lands after every press.
+
+## Website and CI
+
+`site/index.html` is the landing page at https://mmis1000.github.io/SofaNav/. It
+runs the built script itself, so visitors can try SofaNav with a controller (or
+an opt-in keyboard mode). `npm run build && npm run site` assembles `_site/`:
+the page, `sofanav.user.js` (install/update URL), `sofanav-extension.zip`,
+the demo video and its poster. Preview locally with `npm run serve:site`.
+
+`.github/workflows/ci.yml` runs on every push and pull request: it checks that
+`dist/sofanav.user.js` was rebuilt from the current `content.js`, runs the
+regression checks in Chromium, builds the site, and on `main` deploys it to
+GitHub Pages.

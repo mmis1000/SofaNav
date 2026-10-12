@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SofaNav: browse any website with a game controller</title>
+<meta name="description" content="Console-style controller navigation for any website. The D-pad and left stick move focus between links and buttons by screen position, like an Xbox or TV app. Browser extension and userscript.">
+<meta property="og:title" content="SofaNav: browse any website with a game controller">
+<meta property="og:description" content="Console-style D-pad and stick navigation for any website. Browser extension and userscript.">
+<meta property="og:image" content="https://mmis1000.github.io/SofaNav/poster.jpg">
+<style>
+  :root {
+    --bg: #0e1013; --bg-2: #15181d; --card: #1b1f26; --line: #2a303a; --text: #e8ebf0; --muted: #9aa3b2;
+    --accent: #4cd964; --accent-ink: #062b0f; --pink: #ff69b4; --focus: #107c10;
+    --radius: 14px; --max: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: var(--accent); }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+  header.top { position: sticky; top: 0; z-index: 10; background: rgba(14,16,19,.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  header.top .wrap { display: flex; align-items: center; gap: 20px; height: 60px; }
+  .logo { font-weight: 800; font-size: 20px; color: var(--text); text-decoration: none; letter-spacing: .2px; }
+  .logo span { color: var(--accent); }
+  nav.links { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  nav.links a { color: var(--muted); text-decoration: none; padding: 8px 12px; border-radius: 8px; }
+  nav.links a:hover, nav.links a:focus-visible { color: var(--text); background: var(--bg-2); }
+
+  .hero { padding: 72px 0 40px; text-align: center; }
+  .hero h1 { font-size: clamp(36px, 6vw, 64px); line-height: 1.05; margin: 0 0 16px; letter-spacing: -1px; }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero p.lead { font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 720px; margin: 0 auto 28px; }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 999px; font-weight: 650;
+    text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--card); cursor: pointer; font-size: 16px; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .btn:hover { filter: brightness(1.08); }
+  .status { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px; padding: 8px 16px; border-radius: 999px;
+    background: var(--bg-2); border: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #666; }
+  .status.on .dot { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .status.on { color: var(--text); }
+
+  section { padding: 56px 0; }
+  h2 { font-size: clamp(26px, 3.5vw, 36px); margin: 0 0 10px; letter-spacing: -.5px; }
+  .sub { color: var(--muted); margin: 0 0 28px; max-width: 760px; }
+  video { width: 100%; border-radius: var(--radius); border: 1px solid var(--line); background: #000; display: block; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .feature { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .feature h3 { margin: 6px 0 6px; font-size: 18px; }
+  .feature p { margin: 0; color: var(--muted); font-size: 15px; }
+  .icon { font-size: 26px; }
+
+  /* Playground: real stops for SofaNav to navigate on this page. */
+  .play { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+  .panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .panel h4 { margin: 0 0 12px; font-size: 14px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tile { width: 92px; height: 64px; border-radius: 10px; border: 0; color: #fff; font-weight: 700; cursor: pointer;
+    background: linear-gradient(135deg, #3d6, #36c); }
+  .tile:nth-child(2n) { background: linear-gradient(135deg, #c3a, #63f); }
+  .tile:nth-child(3n) { background: linear-gradient(135deg, #f93, #c33); }
+  .post { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid;
+    grid-template-columns: 40px 1fr; gap: 10px; margin-top: 12px; cursor: pointer; }
+  .post .av { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3d6, #36c); display: block; }
+  .post .who { color: var(--text); font-weight: 650; text-decoration: none; }
+  .post .acts { display: flex; gap: 14px; margin-top: 6px; }
+  .post .acts button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 4px; font: inherit; font-size: 14px; }
+  #chat { height: 300px; overflow-y: auto; padding-right: 6px; }
+  #chat .msg { padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  #chat .msg b { color: #8cf; }
+  .log { margin-top: 12px; font-size: 14px; color: var(--pink); min-height: 1.6em; }
+  .kbd-help { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  kbd { background: var(--card); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; font: 13px ui-monospace, monospace; color: var(--text); }
+
+  .install { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .install .feature ol { margin: 10px 0 14px; padding-left: 20px; color: var(--muted); font-size: 15px; }
+  .install .feature .btn { font-size: 15px; padding: 10px 16px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  th { color: var(--muted); font-weight: 600; background: var(--bg-2); }
+  td:first-child { white-space: nowrap; font-weight: 650; }
+  tr:last-child td { border-bottom: 0; }
+  .note { color: var(--muted); font-size: 14px; margin-top: 12px; }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  footer .right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+
+  @media (max-width: 760px) {
+    .play { grid-template-columns: 1fr; }
+    nav.links a:not(.gh) { display: none; }
+    .hero { padding-top: 48px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#top">Sofa<span>Nav</span></a>
+    <nav class="links">
+      <a href="#try">Try it</a>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#controls">Controls</a>
+      <a class="gh" href="https://github.com/mmis1000/SofaNav">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero wrap">
+    <h1>Browse the web<br><em>from the sofa.</em></h1>
+    <p class="lead">SofaNav turns any website into a console-style menu. Your D-pad and stick move between links and buttons by where they sit on screen, like an Xbox or TV app. No mouse cursor to drag around.</p>
+    <div class="cta">
+      <a class="btn primary" href="sofanav.user.js">Install userscript</a>
+      <a class="btn" href="sofanav-extension.zip">Download extension</a>
+      <a class="btn" href="#try">Try it on this page</a>
+    </div>
+    <div class="status" id="padStatus"><span class="dot"></span><span id="padText">This page runs SofaNav. Connect a controller and press any button.</span></div>
+  </div>
+
+  <section class="wrap">
+    <video src="sofanav-demo.mp4" poster="poster.jpg" controls muted playsinline preload="none"></video>
+  </section>
+
+  <section id="try" class="wrap">
+    <h2>Try it right here</h2>
+    <p class="sub">This page runs SofaNav. Pick up a controller (Xbox, PlayStation, Switch Pro, Steam Deck…), press any button, and use the D-pad. Press <b>Y</b> to see where each direction goes.
+      No controller? <button class="btn" id="kbdToggle" type="button" style="padding:6px 14px;font-size:14px">Try with keyboard</button></p>
+    <div class="play">
+      <div class="panel">
+        <h4>A store shelf</h4>
+        <div class="row">
+          <button class="tile">Racing</button><button class="tile">Puzzle</button><button class="tile">RPG</button>
+          <button class="tile">Indie</button><button class="tile">Sports</button><button class="tile">Co-op</button>
+        </div>
+        <h4 style="margin-top:20px">A feed: each post is one stop. X enters it, B leaves.</h4>
+        <article class="post" tabindex="0" data-post="first">
+          <a class="av" href="#u1" aria-label="avatar"></a>
+          <div><a class="who" href="#u1">Couch Gamer</a> <span style="color:var(--muted)">Finally reading the news from the sofa.</span>
+            <div class="acts"><button>Reply</button><button>Repost</button><button>Like</button></div></div>
+        </article>
+        <article class="post" tabindex="0" data-post="second">
+          <a class="av" href="#u2" aria-label="avatar"></a>
+          <div><a class="who" href="#u2">Deck Owner</a> <span style="color:var(--muted)">D-pad up, D-pad up, A. That's the whole UI.</span>
+            <div class="acts"><button>Reply</button><button>Like</button></div></div>
+        </article>
+        <div class="log" id="log"></div>
+      </div>
+      <div class="panel">
+        <h4>A live chat: the right stick scrolls it</h4>
+        <div id="chat"></div>
+      </div>
+    </div>
+    <p class="kbd-help" id="kbdHelp" hidden>Keyboard mode: <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> D-pad · <kbd>Enter</kbd> A · <kbd>Backspace</kbd> B · <kbd>X</kbd> enter · <kbd>Y</kbd> graph view · <kbd>PgUp</kbd>/<kbd>PgDn</kbd> page · <kbd>J</kbd>/<kbd>L</kbd> scroll the chat. Click the button again to turn it off.</p>
+  </section>
+
+  <section id="features" class="wrap">
+    <h2>Feels like a console, works on any site</h2>
+    <p class="sub">Websites weren't designed for controllers. SofaNav reads the page the way you see it and figures out what's left, right, up and down.</p>
+    <div class="grid">
+      <div class="feature"><div class="icon">✚</div><h3>D-pad that makes sense</h3><p>Moves to the nearest thing in that direction, keeping rows and columns lined up. Pressing back the opposite way returns where you came from.</p></div>
+      <div class="feature"><div class="icon">🕹️</div><h3>Free-aim stick</h3><p>Point the left stick at any angle and land on what's there. The graph view draws a pie of where every angle goes.</p></div>
+      <div class="feature"><div class="icon">🗂️</div><h3>Cards and panels</h3><p>Posts, cards and scrolling panels are single stops you can skim past. X steps inside, B steps back out.</p></div>
+      <div class="feature"><div class="icon">🪟</div><h3>Inside iframes too</h3><p>Embedded players, chats and widgets, even from other sites, navigate as if they were part of the page.</p></div>
+      <div class="feature"><div class="icon">♻️</div><h3>Survives page changes</h3><p>When a site swaps content or hides the button you pressed, focus lands on whatever is nearest instead of getting lost.</p></div>
+      <div class="feature"><div class="icon">🎯</div><h3>Keyboard-like repeat</h3><p>Move once, pause, then repeat. Stick bounce and drift are filtered, so a flick moves exactly one step.</p></div>
+    </div>
+  </section>
+
+  <section id="install" class="wrap">
+    <h2>Install</h2>
+    <p class="sub">Pick one. They run the same code.</p>
+    <div class="install">
+      <div class="feature">
+        <h3>Userscript</h3>
+        <ol>
+          <li>Install <a href="https://www.tampermonkey.net/">Tampermonkey</a> or <a href="https://violentmonkey.github.io/">Violentmonkey</a>.</li>
+          <li>Open the script; your manager offers to install it.</li>
+          <li>Updates arrive automatically.</li>
+        </ol>
+        <a class="btn primary" href="sofanav.user.js">Install userscript</a>
+      </div>
+      <div class="feature">
+        <h3>Browser extension</h3>
+        <ol>
+          <li>Download and unzip.</li>
+          <li>Chrome / Edge: <code>chrome://extensions</code> → Developer mode → Load unpacked → pick the folder.</li>
+          <li>Firefox: <code>about:debugging</code> → Load Temporary Add-on → <code>manifest.json</code>.</li>
+        </ol>
+        <a class="btn" href="sofanav-extension.zip">Download extension</a>
+        <p class="note">The extension also switches browser tabs with LB / RB.</p>
+      </div>
+      <div class="feature">
+        <h3>Just try it</h3>
+        <ol>
+          <li>Open any page and its developer console (F12).</li>
+          <li>Paste the script and press Enter.</li>
+          <li>It lasts until the page reloads.</li>
+        </ol>
+        <a class="btn" href="sofanav.js">Open the script</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="controls" class="wrap">
+    <h2>Controls</h2>
+    <table>
+      <tr><th>Button</th><th>Does</th></tr>
+      <tr><td>D-pad</td><td>Move to the next link or button in that direction</td></tr>
+      <tr><td>Left stick</td><td>Aim at any angle</td></tr>
+      <tr><td>A</td><td>Click; on a text field, start typing</td></tr>
+      <tr><td>B</td><td>Back: leave a text field, leave a card or panel, close a dialog, then go back a page</td></tr>
+      <tr><td>X</td><td>Enter a card or panel</td></tr>
+      <tr><td>Y</td><td>Graph view: off → arrows (or the stick pie) → whole page</td></tr>
+      <tr><td>Right stick</td><td>Scroll; on a focused panel, scrolls the panel</td></tr>
+      <tr><td>LT / RT</td><td>Page up / page down</td></tr>
+      <tr><td>LB / RB</td><td>Previous / next tab (extension only)</td></tr>
+      <tr><td>View</td><td>Turn SofaNav on or off</td></tr>
+      <tr><td>Menu ☰</td><td>Debug report in the console (for bug reports)</td></tr>
+    </table>
+    <p class="note">Found a page where it gets lost? Press ☰ and <a href="https://github.com/mmis1000/SofaNav/issues">open an issue</a> with the console output.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>SofaNav · <a href="https://github.com/mmis1000/SofaNav">source on GitHub</a></span>
+    <span class="right"><span id="buildInfo"></span>
+      <img alt="vibes coded" height="20" src="https://img.shields.io/badge/vibes-coded-ff69b4.svg"></span>
+  </div>
+</footer>
+
+<script>
+  // Playground content.
+  document.getElementById('chat').innerHTML = Array.from({ length: 40 }, (_, i) =>
+    `<div class="msg"><b>viewer${i + 1}</b> ${['gg', 'nice shot', 'lol', 'is this on a TV?', 'D-pad gang', 'hello from the couch'][i % 6]}</div>`).join('');
+  const log = (t) => (document.getElementById('log').textContent = t);
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.tile, .acts button, a.who, a.av');
+    const post = e.target.closest('.post');
+    if (b) { e.preventDefault(); log('Clicked: ' + (b.textContent.trim() || b.getAttribute('aria-label'))); }
+    else if (post) log('Opened the post');
+  });
+
+  // Controller status pill.
+  const pill = document.getElementById('padStatus'), pillText = document.getElementById('padText');
+  setInterval(() => {
+    const pads = [...(navigator.getGamepads?.() || [])].filter(Boolean).filter((p) => p.id !== 'keyboard');
+    pill.classList.toggle('on', pads.length > 0 || keyboardMode);
+    pillText.textContent = pads.length ? `Controller connected: ${pads[0].id.replace(/\s*\(.*$/, '').slice(0, 48)}. Use the D-pad!`
+      : keyboardMode ? 'Keyboard mode: arrow keys act as the D-pad.' : 'This page runs SofaNav. Connect a controller and press any button.';
+  }, 500);
+
+  // Opt-in keyboard mode: a virtual controller fed by the keyboard (off by default, so the
+  // arrow keys keep scrolling the page normally).
+  let keyboardMode = false;
+  const pad = { id: 'keyboard', index: 99, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+    buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+  const realGetGamepads = navigator.getGamepads ? navigator.getGamepads.bind(navigator) : () => [];
+  navigator.getGamepads = () => [...realGetGamepads(), ...(keyboardMode ? [pad] : [])];
+  const KEYS = { ArrowUp: 12, ArrowDown: 13, ArrowLeft: 14, ArrowRight: 15, Enter: 0, Backspace: 1, KeyX: 2, KeyY: 3, PageUp: 6, PageDown: 7 };
+  const STICK = { KeyJ: -1, KeyL: 1 }; // right stick up / down
+  for (const type of ['keydown', 'keyup']) addEventListener(type, (e) => {
+    if (!keyboardMode || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (document.activeElement?.matches('input, textarea')) return;
+    const down = type === 'keydown';
+    if (e.code in STICK) { e.preventDefault(); pad.axes = down ? [0, 0, 0, STICK[e.code] * 0.9] : [0, 0, 0, 0]; return; }
+    const i = KEYS[e.code];
+    if (i === undefined) return;
+    e.preventDefault();
+    if (down) pad.buttons[i] = { pressed: true, value: 1 };
+    else setTimeout(() => (pad.buttons[i] = { pressed: false, value: 0 }), 60); // a quick tap still spans a poll
+  }, true);
+  document.getElementById('kbdToggle').onclick = (e) => {
+    keyboardMode = !keyboardMode;
+    e.currentTarget.textContent = keyboardMode ? 'Turn off keyboard mode' : 'Try with keyboard';
+    document.getElementById('kbdHelp').hidden = !keyboardMode;
+    if (keyboardMode) { dispatchEvent(new Event('gamepadconnected')); e.currentTarget.blur(); }
+  };
+
+  // Build id in the footer.
+  fetch('build.json').then((r) => r.json()).then((b) => {
+    document.getElementById('buildInfo').textContent = `v${b.version} · build ${b.build}`;
+  }).catch(() => {});
+</script>
+<!-- The same build users install. If they already run SofaNav, this copy steps aside. -->
+<script src="sofanav.js"></script>
+</body>
+</html>

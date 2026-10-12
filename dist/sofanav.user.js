@@ -1,26 +1,32 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121526
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build ed5cb1934702)
+// @version      0.3.0.202610121548
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build e657bb3b46a5)
+// @homepageURL  https://mmis1000.github.io/SofaNav/
+// @downloadURL  https://mmis1000.github.io/SofaNav/sofanav.user.js
+// @updateURL    https://mmis1000.github.io/SofaNav/sofanav.user.js
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build ed5cb1934702 = first 12 hex digits of sha256(extension/content.js).
+// Build e657bb3b46a5 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // SofaNav: gamepad spatial navigation. D-pad / left stick moves a focus ring between
 // interactive elements by on-screen geometry (like a console UI), not a cursor.
 (() => {
-  if (window.__sofanavLoaded) return;
+  // One copy per page: a userscript shares this window, but the extension runs in its own
+  // script world, so the marker also goes on the page's <html> (visible to every copy).
+  if (window.__sofanavLoaded || document.documentElement.hasAttribute('data-sofanav')) return;
   window.__sofanavLoaded = true;
+  document.documentElement.setAttribute('data-sofanav', '');
   // In a frame this script is only a client: it reports its elements to the
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = 'ed5cb1934702';
+  const BUILD = 'e657bb3b46a5';
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -1270,6 +1276,9 @@
       left: r.left - pad + 'px', top: r.top - pad + 'px',
       width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px',
     });
+    // The hint belongs next to the element: hide it while the element is scrolled off screen
+    // (clamping it on screen would leave it floating next to nothing).
+    if (hint.textContent) hint.style.display = inViewport(r) ? 'block' : 'none';
     if (hint.style.display !== 'none') {
       // Below the element, else above it; for elements taller than the screen (a full-height
       // sidebar) neither fits, so sit inside it along its visible bottom edge. Always on screen.

@@ -219,6 +219,29 @@ const checks = {
     const id = await page.evaluate(() => __sofanav.current()?.id);
     return { ok: id === 'nmReply', detail: `↑ from the post → ${id}` };
   },
+
+  // E28: the hint hides while its element is scrolled off screen (instead of being clamped onto it).
+  async 'E28 hint hides when its element scrolls off screen'(page) {
+    const { press, wait } = helpers(page);
+    await press('ArrowUp');
+    await page.evaluate(async () => {
+      const card = document.querySelector('[data-post="1"]');
+      card.scrollIntoView({ block: 'center' });
+      await new Promise((r) => setTimeout(r, 300));
+      __sofanav.candidates();
+      __sofanav.focus(card);
+    });
+    await wait(400);
+    const hint = () => page.evaluate(() => {
+      const h = [...document.documentElement.children].filter((e) => e.tagName === 'DIV').find((e) => e.style.whiteSpace === 'nowrap');
+      return h.style.display !== 'none' ? h.textContent : null;
+    });
+    const before = await hint();
+    await page.evaluate(() => scrollBy(0, 2000)); // the card is now far above the screen
+    await wait(400);
+    const after = await hint();
+    return { ok: !!before && after === null, detail: `on screen: "${before}" · scrolled away: ${after === null ? 'hidden' : '"' + after + '"'}` };
+  },
 };
 
 (async () => {

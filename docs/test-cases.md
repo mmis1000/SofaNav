@@ -352,6 +352,12 @@ be within `MAX_CENTER_DEVIATION` (60°) of the pressed direction (Premium+ is
 no element on the test page becomes unreachable and established paths are
 unchanged. *Where:* `score`. *Checks:* 12a.
 
+**E28. The hint floated on screen after its element scrolled away.** E25 clamps
+the hint to the screen; with the focused element scrolled off screen the hint
+was still shown, clamped to the edge, next to nothing (seen on the landing page
+on a phone). *Fix:* the hint only shows while the focused element is at least
+partly on screen. *Where:* `updateRing`. *Checks:* automated (`test:regress`).
+
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its
 old proxies stayed alive candidates (commands went to a document that no longer
