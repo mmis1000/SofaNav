@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Victim (cross-origin, logged in)</title>
+<style>body { font: 14px system-ui, sans-serif; margin: 12px; } button { padding: 8px 12px; }</style>
+</head>
+<body>
+<p>A logged-in page that can be framed by other sites.</p>
+<form id="transfer">
+  <input type="hidden" name="csrf" value="secret-token-123">
+  <button id="send">Send money</button>
+  <a href="#danger" id="danger">Delete account</a>
+</form>
+<script>
+  // The security test reads these through Playwright (it can see every frame).
+  window.__submitted = 0;
+  window.__clicked = [];
+  document.getElementById('transfer').addEventListener('submit', (e) => { e.preventDefault(); window.__submitted++; });
+  document.addEventListener('click', (e) => window.__clicked.push(e.target.id || e.target.tagName));
+</script>
+<script>
+  // ?ext: the extension provides SofaNav, so don't load the page-script copy.
+  if (!new URLSearchParams(location.search).has('ext')) document.write('<script src="/extension/content.js"><\/script>');
+</script>
+</body>
+</html>

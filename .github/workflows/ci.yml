@@ -40,6 +40,9 @@ jobs:
       - name: Regression checks (docs/test-cases.md)
         run: npm run test:regress
 
+      - name: Security checks (real extension; forged frame commands)
+        run: npm run test:security
+
   site:
     needs: test
     runs-on: ubuntu-latest

@@ -49,9 +49,9 @@ section heading on that page.
 | # | Where | Steps → Expected | Why it exists | Code |
 |---|---|---|---|---|
 | 20 | Chip bar | Focus ›, press A → arrow hides; focus on the nearest chip | Guards E12: the YouTube chip-bar arrow bug | `recoverFocus`, `gone`, `rememberRect`, `GONE_CHECK_MS` |
-| 21 | Iframes | Enter the cross-origin frame, focus F1, right-stick the frame until F1 is gone, ↓ → visible element in the same frame | Guards E13 (the reported "throws focus out" bug) | `reentryPoint`, `actualRect`, `sameScrollArea`, `toTop(…, clip=false)` |
+| 21 | Iframes (`/test/?ext` with the extension loaded) | Enter the cross-origin frame, focus F1, right-stick the frame until F1 is gone, ↓ → visible element in the same frame | Guards E13 (the reported "throws focus out" bug) | `reentryPoint`, `actualRect`, `sameScrollArea`, `toTop(…, clip=false)` |
 | 22 | Horizontal scroller | Enter the scroller, focus Item 2, right-stick the box until Item 2 is gone, ↓ → nearest visible item in the scroller | Guards E13 outside iframes (same bug in ordinary scroll boxes) | `reentryPoint`, `scrollBox` |
-| 23 | Iframes | Enter the cross-origin frame, A on "Hide me" → nearest element in that frame | Guards E12 across frames (the frame client reports `gone`) | `startClient` (`track`), `recoverFocus` |
+| 23 | Iframes (`/test/?ext` with the extension loaded) | Enter the cross-origin frame, A on "Hide me" → nearest element in that frame | Guards E12 across frames (the frame client reports `gone`) | `startClient` (`track`), `recoverFocus` |
 
 ### Unreachable elements
 
@@ -63,8 +63,8 @@ section heading on that page.
 
 | # | Where | Steps → Expected | Why it exists | Code |
 |---|---|---|---|---|
-| 25 | Iframes | → from "Before frames" → the same-origin frame is one stop ("A/X enter (n) · right stick scrolls"); → again → the cross-origin frame. A/X enters: F1 → F2 → F3 inside; B leaves. The script-less frame is one plain element | Core: frames navigate like the page; scrolling frames are scroll containers (E18); frames without a client degrade to one element | `refreshFrames`, `applySnapshot`, `RemoteEl`, `toTop`, `candidatesNow` |
-| 26 | Iframes | Enter the cross-origin frame, A on F1 → status box "click in cross-origin: F1" | Core: commands reach cross-origin frames | `activate` (RemoteEl branch), `startClient` |
+| 25 | Iframes | → from "Before frames" → the same-origin frame is one stop ("A/X enter (n) · right stick scrolls"); → again → the cross-origin frame: a plain element as a page script/userscript, a container with the extension (`/test/?ext`). Then the cross-origin frame. A/X enters: F1 → F2 → F3 inside; B leaves. The script-less frame is one plain element | Core: frames navigate like the page; scrolling frames are scroll containers (E18); frames without a client degrade to one element | `refreshFrames`, `applySnapshot`, `RemoteEl`, `toTop`, `candidatesNow` |
+| 26 | Iframes (`/test/?ext` with the extension loaded) | Enter the cross-origin frame, A on F1 → status box "click in cross-origin: F1" | Core: commands reach cross-origin frames | `activate` (RemoteEl branch), `startClient` |
 | 27 | Iframes | A then B on each frame's text box → focus enters then leaves; no history back | Core: B inside frames asks the frame first | `back`, `askFrameBack` |
 | 28 | Iframes (second row) | → from "Left of flat frame" → F1 → F2 → F3 inside the non-scrolling frame → "Right of flat frame"; no hint, no scope, no X needed; whole-screen graph arrows cross its border | Core + E18: a frame that doesn't scroll is not a container, its elements belong to the page (flattened) | `candidatesNow` (frame loop), `startClient` (`docScroll`), `related`, `buildGraph` |
 | 28a | Iframes | Focus the same-origin frame (not entered), right stick down → the frame's page scrolls | Guards E18 | right-stick branch in `tick`, `startClient` (`scroll`) |
@@ -99,7 +99,8 @@ section heading on that page.
 | 39 | test/stress.html | In the console, time `__sofanav.candidates()` and `__sofanav.buildGraph(list)` → only ~100 near-screen elements processed; tens of ms | Guards E15: cost must not grow with page size | `nearViewport`, `candidatesNow`, `shadowHosts`, `buildGraph` (plain rects) |
 | 40 | Twitter / long feeds | Graph view on, scroll → no sustained lag | Guards E15 on the real site it was reported on | as above, plus `findNext`/`castRay` (score before `related`), `updateHud` (change check) |
 
-Checks marked *automated* run with `npm run test:regress` (Playwright; test server
+Security checks run with `npm run test:security` (Playwright; loads the real
+extension). Checks marked *automated* run with `npm run test:regress` (Playwright; test server
 must be running). `CONTENT_JS=path` runs them against another copy of the script,
 e.g. an old commit, to prove a check catches its bug.
 
@@ -358,6 +359,29 @@ was still shown, clamped to the edge, next to nothing (seen on the landing page
 on a phone). *Fix:* the hint only shows while the focused element is at least
 partly on screen. *Where:* `updateRing`. *Checks:* automated (`test:regress`).
 
+**E29. SECURITY: any page could make SofaNav click inside a cross-origin iframe
+(found by an external security audit, ChatGPT, of commit 7650661).** The frame
+client trusted `postMessage` from its parent window, checking only the public
+protocol tag and `e.source === window.parent`. But a page that embeds another
+site *is* that site's parent. A malicious page could ask SofaNav inside the frame
+for element ids (`snapshot`) and send `activate`: clicks in the embedded site
+with no controller and no user input, carrying its cookies and CSRF tokens
+(the victim's own form submits the token). Reproduced with the real Chromium
+extension and as a page script: an invisible (`opacity:0`) victim frame's form
+was submitted 22 times. Checking the parent's origin wouldn't help (the parent
+is the attacker). *Fix:* with the extension, commands and replies travel only
+through extension messaging, relayed by the background script with the
+browser's own tab and frame ids; it forwards commands only from the tab's top
+frame and replies only to it. `postMessage` carries nothing but a random,
+single-use probe nonce that maps an `<iframe>` to its frame id (forged probes
+are ignored). As a userscript / page script there is no unforgeable channel,
+so a frame acts as a client only when its parent is same-origin (which can
+script it directly anyway); cross-origin frames are one plain element there.
+*Where:* content.js "frame transport" (`postToFrame`, `probeFrames`,
+`fromFrame`, `startClient`), `background.js`. *Checks:* `npm run test:security`
+(attack in both setups, plus a check that the extension still reaches
+cross-origin frames, with a negative control); fails 2 of 3 on 7650661.
+
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its
 old proxies stayed alive candidates (commands went to a document that no longer
@@ -393,9 +417,13 @@ still keeps the last data: slow frames are common). *Where:* `resetFrame`,
 
 ## Part 3 — Known limits
 
-- Frames: one level only (frames inside frames aren't handled); the
-  postMessage transport could be spoofed by a hostile embedding page (a hardened
-  extension should use `runtime.getFrameId` plus extension messaging).
+- Frames: one level only (frames inside frames aren't handled).
+- Userscript / page script: cross-origin frames are one plain element; only the
+  extension can reach inside them securely (E29).
+- Clickjacking parity: with the extension, a page can still frame another site
+  invisibly over a stop and hope the user presses A on it, just like a mouse user
+  can be tricked into clicking an invisible frame. Sites defend against both with
+  `X-Frame-Options` / `frame-ancestors`; SofaNav never acts without a press.
 - Typing into a cross-origin frame's text field may be refused by Chrome without
   a real click there.
 - Focusing a text field by navigation focuses it for typing, so B first leaves the

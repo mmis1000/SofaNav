@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Attacker</title>
+</head>
+<body>
+<p>An unrelated site that frames the victim invisibly and talks to SofaNav inside it.</p>
+<iframe id="victim" style="width:400px;height:200px;opacity:0"></iframe>
+<script>
+  // Victim on the other origin (localhost <-> 127.0.0.1).
+  const ext = new URLSearchParams(location.search).has('ext');
+  const otherHost = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+  const frame = document.getElementById('victim');
+  frame.src = `${location.protocol}//${otherHost}:${location.port}/test/attack/victim.html${ext ? '?ext' : ''}`;
+
+  // Forge SofaNav's frame protocol. Tries the protocol tag and every command shape the
+  // client has accepted, with and without element ids learned from a snapshot.
+  const PROTO = 'sofanav.mmis1000.me/1';
+  window.__attackLog = [];
+  addEventListener('message', (e) => {
+    if (e.source !== frame.contentWindow || e.data?.sofanav !== PROTO) return;
+    window.__attackLog.push(e.data.type);
+    if (e.data.type === 'snapshot-reply') for (const it of e.data.items) {
+      frame.contentWindow.postMessage({ sofanav: PROTO, type: 'focus', id: it.id }, '*');
+      frame.contentWindow.postMessage({ sofanav: PROTO, type: 'activate', id: it.id }, '*');
+    }
+  });
+  frame.onload = () => {
+    let n = 0;
+    const timer = setInterval(() => {
+      frame.contentWindow.postMessage({ sofanav: PROTO, type: 'snapshot', req: ++n, vpArea: innerWidth * innerHeight }, '*');
+      for (let id = 1; id <= 50; id++) frame.contentWindow.postMessage({ sofanav: PROTO, type: 'activate', id }, '*');
+      if (n > 10) clearInterval(timer);
+    }, 200);
+  };
+</script>
+</body>
+</html>

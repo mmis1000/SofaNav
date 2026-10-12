@@ -109,6 +109,10 @@
   document.getElementById('sameFrame').src = 'frame.html?label=same-origin';
   document.getElementById('crossFrame').src = `${location.protocol}//${otherHost}:${location.port}/test/frame.html?label=cross-origin`;
   document.getElementById('flatFrame').src = 'frame.html?label=flat&short';
+  // ?ext: every frame should rely on the extension too.
+  if (new URLSearchParams(location.search).has('ext')) {
+    for (const f of document.querySelectorAll('iframe[src]')) { const u = new URL(f.src, location.href); u.searchParams.set('ext', ''); f.src = u.href; }
+  }
   addEventListener('message', (e) => {
     if (e.data?.test === 'frame-click') document.getElementById('log').textContent = `click in ${e.data.label}: ${e.data.text}`;
   });
@@ -352,6 +356,9 @@
   }
 </script>
 <script>window.__sofanavDebug = true;</script>
-<script src="../extension/content.js"></script>
+<script>
+  // ?ext: SofaNav comes from the installed extension; don't load the page-script copy too.
+  if (!new URLSearchParams(location.search).has('ext')) document.write('<script src="../extension/content.js"><\/script>');
+</script>
 </body>
 </html>

@@ -148,7 +148,7 @@ const SIZE = { width: 1280, height: 720 };
   await press('Backspace', 1000); await log('B');
 
   await section('Iframes', 'text=Before frames');
-  await caption('Iframes — even cross-origin — are scroll containers too');
+  await caption('Scrolling iframes are containers too');
   await press('ArrowRight', 800); await log('→ frame stop');
   await stick('R', 90, 700, 0.85);
   await stick('R', -90, 700, 0.85);
@@ -156,12 +156,10 @@ const SIZE = { width: 1280, height: 720 };
   await press('Enter', 700); await log('A (enter frame)');
   await presses('ArrowDown', 5, 600); await log('↓ x5 (frame scrolls)');
   await press('Backspace', 800); await log('B');
-  await caption('Next frame is cross-origin: same controls');
-  await press('ArrowRight', 700); await log('→ next frame');
-  await press('x', 700); await log('X (enter)');
-  await press('ArrowRight', 600); await log('→');
-  await press('Enter', 900); await log('A (click in frame)');
-  await press('Backspace', 600); await log('B');
+  // This demo runs SofaNav as a page script, where cross-origin frames stay one plain element
+  // (no forgery-proof channel to them; E29). With the extension they work like the frame above.
+  await caption('Cross-origin frames: one stop here, fully navigable with the extension');
+  await press('ArrowRight', 1600); await log('→ cross-origin frame (plain)');
 
   await section('Iframes', 'text=Left of flat frame', -60);
   await caption("A frame that doesn't scroll has no stop: its buttons belong to the page");

@@ -85,7 +85,9 @@ docs/
   focusable inside (e.g. a live chat) are stops the right stick scrolls. All of
   this works inside iframes too.
 - **Frames**: the top frame is the engine; each iframe runs the same script as a
-  client that reports its elements (postMessage) and executes commands. Frame
+  client that reports its elements and executes commands. With the extension
+  they talk only through extension messaging (pages can't forge it); as a
+  userscript, only same-origin frames take part. Frame
   elements become proxies with translated rects, so all logic treats them alike.
   A frame whose page scrolls is a container (one stop, enter with A/X); frames
   that don't scroll are flattened into the page.
@@ -101,7 +103,8 @@ repeat timing, scoring, wedge sizes); each has a comment.
 npm run serve
 ```
 
-Automated regression checks (Playwright, server running): `npm run test:regress`.
+Automated checks (Playwright, server running): `npm run test:regress`, and
+`npm run test:security` (loads the real extension; forged-command attack).
 
 Then open http://localhost:8765/test/ (the cross-origin frame loads from
 127.0.0.1, so use `localhost` in the address). See [docs/test-cases.md](docs/test-cases.md).
@@ -118,9 +121,8 @@ Then open http://localhost:8765/test/ (the cross-origin frame loads from
 ## Demo video
 
 [demo/sofanav-demo.mp4](demo/sofanav-demo.mp4) (≈60 s): D-pad, graph view, stick
-pie, post cards, a scrollable comments panel, scrolling iframes (same- and
-cross-origin) as containers, and a non-scrolling iframe whose buttons belong to
-the page.
+pie, post cards, a scrollable comments panel, scrolling iframes as containers,
+and a non-scrolling iframe whose buttons belong to the page.
 
 To re-record (after changes), with the test server running:
 

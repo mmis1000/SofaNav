@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121548
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build e657bb3b46a5)
+// @version      0.3.0.202610121624
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 54cd8aace7da)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
@@ -11,7 +11,7 @@
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build e657bb3b46a5 = first 12 hex digits of sha256(extension/content.js).
+// Build 54cd8aace7da = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // SofaNav: gamepad spatial navigation. D-pad / left stick moves a focus ring between
@@ -26,7 +26,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = 'e657bb3b46a5';
+  const BUILD = '54cd8aace7da';
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -450,12 +450,47 @@
   const frames = new WeakMap(); // iframe -> state
   function frameState(iframe) {
     let f = frames.get(iframe);
-    if (!f) frames.set(iframe, (f = { iframe, hasClient: false, answered: false, remotes: new Map(), vw: 1, vh: 1 }));
+    if (!f) frames.set(iframe, (f = { iframe, hasClient: false, answered: false, remotes: new Map(), vw: 1, vh: 1, frameId: null, probe: null }));
     return f;
   }
 
+  // ---------- frame transport ----------
+  // SECURITY (E29): commands make a frame focus, scroll and click on the user's behalf, so
+  // they must only come from SofaNav's own engine in the top frame. window.postMessage can't
+  // prove that: any site that embeds another page is that page's parent and can post anything.
+  //  - Extension: commands and replies go through extension messaging, relayed by the
+  //    background script using the browser's own tab/frame ids, which pages can't forge.
+  //    postMessage carries only a random probe nonce that tells which <iframe> is which frame.
+  //  - Page script / userscript: there is no channel a page can't forge, so a frame acts as a
+  //    client only when its parent is same-origin (and could script it directly anyway).
+  const EXT = typeof chrome !== 'undefined' && !!chrome.runtime?.id;
+  const extSend = (m) => { try { chrome.runtime.sendMessage(m)?.catch?.(() => {}); } catch {} };
+  const nonce = () => [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+
   function postToFrame(f, msg) {
-    try { f.iframe.contentWindow?.postMessage({ sofanav: PROTO, ...msg }, '*'); } catch {}
+    const data = { sofanav: PROTO, ...msg };
+    if (EXT) { if (f.frameId != null) extSend({ sofanav: 'toFrame', frameId: f.frameId, msg: data }); return; }
+    try { f.iframe.contentWindow?.postMessage(data, '*'); } catch {}
+  }
+
+  // Extension: learn each iframe's frame id. Post it a fresh random nonce; the content script
+  // in that frame reports it back through the extension, which attaches the browser's frame id.
+  // A forged probe gets nowhere: the top frame only accepts nonces it handed out.
+  const probeWaiters = new Set();
+  function probeFrames(list) {
+    const waiting = list.filter((iframe) => frameState(iframe).frameId == null);
+    if (!waiting.length) return Promise.resolve();
+    return new Promise((resolve) => {
+      const finish = () => { clearTimeout(timer); probeWaiters.delete(check); resolve(); };
+      const check = () => { if (waiting.every((i) => frameState(i).frameId != null)) finish(); };
+      const timer = setTimeout(finish, FRAME_TIMEOUT);
+      probeWaiters.add(check);
+      for (const iframe of waiting) {
+        const f = frameState(iframe);
+        f.probe = nonce();
+        try { iframe.contentWindow?.postMessage({ sofanavProbe: f.probe }, '*'); } catch {}
+      }
+    });
   }
 
   // Frame-viewport rect -> top viewport rect, clipped to the iframe's content box.
@@ -495,9 +530,10 @@
   const pending = new Map(); // req -> (frameState, data) => void
 
   // Ask every iframe for its elements; resolves when all answered or after FRAME_TIMEOUT.
-  function refreshFrames() {
+  async function refreshFrames() {
     const list = [...document.querySelectorAll('iframe')];
-    if (!list.length) return Promise.resolve();
+    if (!list.length) return;
+    if (EXT) await probeFrames(list);
     const req = ++reqSeq;
     const answered = new Set();
     return new Promise((resolve) => {
@@ -533,6 +569,7 @@
     f.answered = f.hasClient = false;
     f.scroll = undefined;
     f.misses = 0;
+    f.frameId = f.probe = null; // a new document: probe again
   }
   // iframe load events don't bubble, but they can be caught on the way down.
   if (!IS_FRAME) document.addEventListener('load', (e) => { if (e.target?.tagName === 'IFRAME') resetFrame(frames.get(e.target)); }, true);
@@ -559,12 +596,35 @@
     return null;
   }
 
-  // Replies from clients. Only messages from our own child frames are accepted.
-  if (!IS_FRAME) addEventListener('message', (e) => {
+  function frameOfId(id) {
+    for (const iframe of document.querySelectorAll('iframe')) { const f = frames.get(iframe); if (f && f.frameId === id) return f; }
+    return null;
+  }
+
+  // Replies from clients. Extension: relayed by the background script with the sender's
+  // frame id (pages can't send these). Page script: only from our own child frames.
+  if (!IS_FRAME && EXT) chrome.runtime.onMessage.addListener((m, sender) => {
+    if (sender.id !== chrome.runtime.id || m?.sofanav !== 'fromFrame' || m.msg?.sofanav !== PROTO) return;
+    const d = m.msg;
+    if (d.type === 'probe') {
+      for (const iframe of document.querySelectorAll('iframe')) {
+        const f = frames.get(iframe);
+        if (f?.probe && f.probe === d.nonce) { f.frameId = m.frameId; f.probe = null; }
+      }
+      probeWaiters.forEach((w) => w());
+      return;
+    }
+    const f = frameOfId(m.frameId);
+    if (f) fromFrame(f, d);
+  });
+  if (!IS_FRAME && !EXT) addEventListener('message', (e) => {
     const d = e.data;
     if (!d || d.sofanav !== PROTO) return;
     const f = frameOfSource(e.source);
-    if (!f) return;
+    if (f) fromFrame(f, d);
+  });
+
+  function fromFrame(f, d) {
     if (d.type === 'snapshot-reply') pending.get(d.req)?.(f, d);
     else if (d.type === 'back-reply') pending.get(d.req)?.(f, d);
     else if (d.type === 'focused') {
@@ -574,7 +634,7 @@
       if (d.rect) r.local = d.rect;
       r.goneFlag = !!d.gone;
     }
-  });
+  }
 
   // Ask the frame to handle B (leave a text field); resolves true if it did.
   function askFrameBack(f) {
@@ -599,7 +659,6 @@
       byId.set(id, el);
       return id;
     };
-    const send = (msg) => window.parent.postMessage({ sofanav: PROTO, ...msg }, '*');
     // Whether this frame's document scrolls, and how far it can go each way.
     const docScroll = () => {
       const se = document.scrollingElement || document.documentElement;
@@ -620,9 +679,31 @@
       requestAnimationFrame(track);
     }
 
-    addEventListener('message', (e) => {
-      const d = e.data;
-      if (!d || d.sofanav !== PROTO || e.source !== window.parent) return;
+    // Commands from the engine; see "frame transport" for why each channel is trusted.
+    let send;
+    if (EXT) {
+      send = (msg) => extSend({ sofanav: 'toTop', msg: { sofanav: PROTO, ...msg } });
+      chrome.runtime.onMessage.addListener((m, sender) => {
+        if (sender.id !== chrome.runtime.id || m?.sofanav !== 'cmd' || m.msg?.sofanav !== PROTO) return;
+        handleCommand(m.msg);
+      });
+      // The only thing taken from postMessage: a probe nonce, answered through the extension.
+      addEventListener('message', (e) => {
+        if (e.source !== window.parent || typeof e.data?.sofanavProbe !== 'string') return;
+        send({ type: 'probe', nonce: e.data.sofanavProbe.slice(0, 64) });
+      });
+    } else {
+      let sameOrigin = false;
+      try { sameOrigin = window.parent.location.origin === location.origin; } catch {}
+      if (!sameOrigin) return; // a cross-origin parent could be anyone: stay a plain page
+      send = (msg) => window.parent.postMessage({ sofanav: PROTO, ...msg }, location.origin);
+      addEventListener('message', (e) => {
+        if (e.source !== window.parent || e.origin !== location.origin || e.data?.sofanav !== PROTO) return;
+        handleCommand(e.data);
+      });
+    }
+
+    function handleCommand(d) {
       if (d.type === 'snapshot') {
         topViewportArea = d.vpArea || null;
         byId = new Map();
@@ -683,7 +764,7 @@
         const horiz = d.dir === 'left' || d.dir === 'right', sign = d.dir === 'down' || d.dir === 'right' ? 1 : -1;
         scrollBy({ [horiz ? 'left' : 'top']: (horiz ? innerWidth : innerHeight) * 0.6 * sign, behavior: 'smooth' });
       }
-    });
+    }
   }
 
   // ---------- geometry ----------

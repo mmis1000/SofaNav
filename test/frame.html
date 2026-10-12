@@ -49,6 +49,9 @@
   }, true);
 </script>
 <!-- Stands in for the extension/userscript being injected into this frame. -->
-<script src="/extension/content.js"></script>
+<script>
+  // ?ext: SofaNav comes from the installed extension; don't load the page-script copy too.
+  if (!new URLSearchParams(location.search).has('ext')) document.write('<script src="/extension/content.js"><\/script>');
+</script>
 </body>
 </html>

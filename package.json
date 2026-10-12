@@ -9,7 +9,8 @@
     "demo": "node scripts/record-demo.js",
     "test:regress": "node scripts/regressions.js",
     "site": "node scripts/build-site.js",
-    "serve:site": "python -m http.server 8766 -d _site"
+    "serve:site": "python -m http.server 8766 -d _site",
+    "test:security": "node scripts/security.js"
   },
   "devDependencies": {
     "playwright": "^1.64.0"
