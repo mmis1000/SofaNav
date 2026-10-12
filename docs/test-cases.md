@@ -63,7 +63,7 @@ section heading on that page.
 
 | # | Where | Steps → Expected | Why it exists | Code |
 |---|---|---|---|---|
-| 25 | Iframes | → from "Before frames" → the same-origin frame is one stop ("A/X enter (n) · right stick scrolls"); → again → the cross-origin frame: a plain element as a page script/userscript, a container with the extension (`/test/?ext`). Then the cross-origin frame. A/X enters: F1 → F2 → F3 inside; B leaves. The script-less frame is one plain element | Core: frames navigate like the page; scrolling frames are scroll containers (E18); frames without a client degrade to one element | `refreshFrames`, `applySnapshot`, `RemoteEl`, `toTop`, `candidatesNow` |
+| 25 | Iframes | → from "Before frames" → the same-origin frame is one stop ("A/X enter (n) · right stick scrolls"); → again → the cross-origin frame: a plain element as a page script, a container with the extension or an isolated userscript (`/test/?ext`). Then the cross-origin frame. A/X enters: F1 → F2 → F3 inside; B leaves. The script-less frame is one plain element | Core: frames navigate like the page; scrolling frames are scroll containers (E18); frames without a client degrade to one element | `refreshFrames`, `applySnapshot`, `RemoteEl`, `toTop`, `candidatesNow` |
 | 26 | Iframes (`/test/?ext` with the extension loaded) | Enter the cross-origin frame, A on F1 → status box "click in cross-origin: F1" | Core: commands reach cross-origin frames | `activate` (RemoteEl branch), `startClient` |
 | 27 | Iframes | A then B on each frame's text box → focus enters then leaves; no history back | Core: B inside frames asks the frame first | `back`, `askFrameBack` |
 | 28 | Iframes (second row) | → from "Left of flat frame" → F1 → F2 → F3 inside the non-scrolling frame → "Right of flat frame"; no hint, no scope, no X needed; whole-screen graph arrows cross its border | Core + E18: a frame that doesn't scroll is not a container, its elements belong to the page (flattened) | `candidatesNow` (frame loop), `startClient` (`docScroll`), `related`, `buildGraph` |
@@ -382,6 +382,39 @@ script it directly anyway); cross-origin frames are one plain element there.
 (attack in both setups, plus a check that the extension still reaches
 cross-origin frames, with a negative control); fails 2 of 3 on 7650661.
 
+**E30. Userscript: cross-origin frames again, over GM storage (follow-up to E29,
+suggested in the audit's follow-up).** E29 left userscript users without
+cross-origin frames. *Fix:* when the userscript runs in an isolated world, the
+E29 design runs over the userscript manager's per-script storage instead of
+extension messaging: every instance listens on its own random key
+(`GM_addValueChangeListener`), and `GM_setValue` to a key delivers a message.
+Only this script's instances can write that storage. The probe (nonce plus the
+engine's key) still goes by `postMessage`, the reply comes back by GM; a frame
+takes commands only from the engine key it was probed with, and written keys
+are deleted after 5 s of quiet. *Isolation is required, not optional:* tested
+in Violentmonkey 2.49, a script without `@inject-into content` runs in the
+page's world even with no `unsafeWindow` (page globals are hidden, but built-in
+prototypes are shared), so the attacker page can replace
+`navigator.getGamepads` and SofaNav in its own top frame obeys a fake
+controller, then sends *real* commands over GM. The header asks for isolation
+(`@sandbox DOM` for Tampermonkey, `@inject-into content` for Violentmonkey) and
+the code checks it (`GM_info.sandboxMode === 'dom'` / `GM_info.injectInto ===
+'content'`); without it, only same-origin frames take part, as before. Also
+found here: in Violentmonkey's page mode `window` is a wrapper, and `new
+PointerEvent(..., { view: window })` threw, so A did nothing; `activate` now
+passes `document.defaultView`. *Where:* content.js "frame transport" (`GM`,
+`gmSend`, `gmListen`, `probeFrames`, `fromPeer`, `startClient`),
+`build-userscript.js` (header, `USERSCRIPT`). *Checks:* `npm run
+test:security` installs the userscript in a pinned Violentmonkey
+(`scripts/fetch-violentmonkey.js`, sha256-checked) and runs the attack (now
+also with a fake controller on the attacker page) plus the cross-origin check.
+Negative controls, run by hand with modified copies (`USERSCRIPT=...`): GM
+forced on without isolation → the fake controller clicks "Delete account" in
+the victim; GM forced off → the cross-origin check fails; isolation lines
+removed → safe fallback (no cross-origin frames). Tampermonkey is not
+automated (closed source, store-only); check it by hand with
+`/test/attack/attacker.html` and `/test/?ext`.
+
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its
 old proxies stayed alive candidates (commands went to a document that no longer
@@ -418,8 +451,11 @@ still keeps the last data: slow frames are common). *Where:* `resetFrame`,
 ## Part 3 — Known limits
 
 - Frames: one level only (frames inside frames aren't handled).
-- Userscript / page script: cross-origin frames are one plain element; only the
-  extension can reach inside them securely (E29).
+- Page script, or a userscript not running isolated (manager without
+  `GM_addValueChangeListener` such as Greasemonkey 4, or isolation turned off):
+  cross-origin frames are one plain element (E29, E30).
+- Userscript cross-origin frames go through the manager's storage, so each
+  message is a storage write; slower than extension messaging.
 - Clickjacking parity: with the extension, a page can still frame another site
   invisibly over a stop and hope the user presses A on it, just like a mouse user
   can be tricked into clicking an invisible frame. Sites defend against both with

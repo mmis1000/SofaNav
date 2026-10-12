@@ -87,7 +87,9 @@ docs/
 - **Frames**: the top frame is the engine; each iframe runs the same script as a
   client that reports its elements and executes commands. With the extension
   they talk only through extension messaging (pages can't forge it); as a
-  userscript, only same-origin frames take part. Frame
+  userscript, through the manager's GM storage when it runs isolated
+  (Tampermonkey `@sandbox DOM`, Violentmonkey `@inject-into content`),
+  otherwise only same-origin frames take part. Frame
   elements become proxies with translated rects, so all logic treats them alike.
   A frame whose page scrolls is a container (one stop, enter with A/X); frames
   that don't scroll are flattened into the page.

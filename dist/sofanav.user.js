@@ -1,18 +1,26 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121624
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 54cd8aace7da)
+// @version      0.3.0.202610121644
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build f1792a5bc555)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
 // @match        *://*/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_info
+// @grant        GM_setValue
+// @grant        GM_deleteValue
+// @grant        GM_addValueChangeListener
+// @sandbox      DOM
+// @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 54cd8aace7da = first 12 hex digits of sha256(extension/content.js).
+// Build f1792a5bc555 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
+// @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
+// reach it. Only then does it control cross-origin frames (over GM storage, see content.js
+// "frame transport"); without isolation it only enters same-origin frames.
 
 // SofaNav: gamepad spatial navigation. D-pad / left stick moves a focus ring between
 // interactive elements by on-screen geometry (like a console UI), not a cursor.
@@ -26,7 +34,8 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '54cd8aace7da';
+  const BUILD = 'f1792a5bc555';
+  const USERSCRIPT = true; // the userscript build sets this
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -450,7 +459,7 @@
   const frames = new WeakMap(); // iframe -> state
   function frameState(iframe) {
     let f = frames.get(iframe);
-    if (!f) frames.set(iframe, (f = { iframe, hasClient: false, answered: false, remotes: new Map(), vw: 1, vh: 1, frameId: null, probe: null }));
+    if (!f) frames.set(iframe, (f = { iframe, hasClient: false, answered: false, remotes: new Map(), vw: 1, vh: 1, peer: null, probe: null }));
     return f;
   }
 
@@ -461,36 +470,73 @@
   //  - Extension: commands and replies go through extension messaging, relayed by the
   //    background script using the browser's own tab/frame ids, which pages can't forge.
   //    postMessage carries only a random probe nonce that tells which <iframe> is which frame.
-  //  - Page script / userscript: there is no channel a page can't forge, so a frame acts as a
-  //    client only when its parent is same-origin (and could script it directly anyway).
-  const EXT = typeof chrome !== 'undefined' && !!chrome.runtime?.id;
+  //  - Userscript in an isolated world (Tampermonkey @sandbox DOM, Violentmonkey @inject-into
+  //    content): the same design over the manager's per-script storage. Every instance listens
+  //    on its own random key, and GM_setValue to that key delivers a message
+  //    (GM_addValueChangeListener). Only this script's instances can write that storage, and in
+  //    an isolated world page code can't reach them or fake their input. Running in the page's
+  //    world (the managers' default) isn't enough even without unsafeWindow: the page can replace
+  //    navigator.getGamepads for SofaNav in its own top frame, which would then send real
+  //    commands. So GM is only used when GM_info says the script is isolated.
+  //  - Otherwise (page script, or a userscript in the page's world): there is no channel a page
+  //    can't forge, so a frame acts as a client only when its parent is same-origin (and could
+  //    script it directly anyway).
+  const EXT = !USERSCRIPT && typeof chrome !== 'undefined' && !!chrome.runtime?.id;
   const extSend = (m) => { try { chrome.runtime.sendMessage(m)?.catch?.(() => {}); } catch {} };
   const nonce = () => [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
+  const gmInfo = USERSCRIPT && typeof GM_info === 'object' ? GM_info : null;
+  const GM = !!gmInfo && (gmInfo.sandboxMode === 'dom' || gmInfo.injectInto === 'content')
+    && typeof GM_setValue === 'function' && typeof GM_deleteValue === 'function' && typeof GM_addValueChangeListener === 'function';
+  const GM_PREFIX = 'sofanav.inbox.';
+  const gmInbox = GM ? GM_PREFIX + nonce() : null;
+  const gmCleanup = new Map(); // key -> timer: delete written keys once quiet, so storage doesn't fill up
+  let gmSeq = 0;
+  function gmSend(box, msg) {
+    try { GM_setValue(box, { from: gmInbox, n: ++gmSeq, msg }); } catch { return; }
+    clearTimeout(gmCleanup.get(box));
+    gmCleanup.set(box, setTimeout(() => { gmCleanup.delete(box); try { GM_deleteValue(box); } catch {} }, 5000));
+  }
+  // Messages to this instance, as (sender's inbox, message).
+  function gmListen(handle) {
+    GM_addValueChangeListener(gmInbox, (key, old, v) => {
+      if (v && typeof v.from === 'string' && v.from.startsWith(GM_PREFIX) && v.msg?.sofanav === PROTO) handle(v.from, v.msg);
+    });
+  }
+
   function postToFrame(f, msg) {
     const data = { sofanav: PROTO, ...msg };
-    if (EXT) { if (f.frameId != null) extSend({ sofanav: 'toFrame', frameId: f.frameId, msg: data }); return; }
+    if (EXT) { if (f.peer != null) extSend({ sofanav: 'toFrame', frameId: f.peer, msg: data }); return; }
+    if (GM) { if (f.peer != null) gmSend(f.peer, data); return; }
     try { f.iframe.contentWindow?.postMessage(data, '*'); } catch {}
   }
 
-  // Extension: learn each iframe's frame id. Post it a fresh random nonce; the content script
-  // in that frame reports it back through the extension, which attaches the browser's frame id.
-  // A forged probe gets nowhere: the top frame only accepts nonces it handed out.
+  // Extension / GM: learn which client is in each iframe (its browser frame id, or its GM
+  // inbox). Post the iframe a fresh random nonce; the client in that frame reports it back
+  // through the trusted channel, which identifies the sender. A forged probe gets nowhere: the
+  // top frame only accepts nonces it handed out, and the reply never goes through the page.
   const probeWaiters = new Set();
   function probeFrames(list) {
-    const waiting = list.filter((iframe) => frameState(iframe).frameId == null);
+    const waiting = list.filter((iframe) => frameState(iframe).peer == null);
     if (!waiting.length) return Promise.resolve();
     return new Promise((resolve) => {
       const finish = () => { clearTimeout(timer); probeWaiters.delete(check); resolve(); };
-      const check = () => { if (waiting.every((i) => frameState(i).frameId != null)) finish(); };
+      const check = () => { if (waiting.every((i) => frameState(i).peer != null)) finish(); };
       const timer = setTimeout(finish, FRAME_TIMEOUT);
       probeWaiters.add(check);
       for (const iframe of waiting) {
         const f = frameState(iframe);
         f.probe = nonce();
-        try { iframe.contentWindow?.postMessage({ sofanavProbe: f.probe }, '*'); } catch {}
+        try { iframe.contentWindow?.postMessage({ sofanavProbe: f.probe, reply: gmInbox }, '*'); } catch {}
       }
     });
+  }
+  function probeAnswered(value, peer) {
+    for (const iframe of document.querySelectorAll('iframe')) {
+      const f = frames.get(iframe);
+      if (f?.probe && f.probe === value) { f.peer = peer; f.probe = null; }
+    }
+    probeWaiters.forEach((w) => w());
   }
 
   // Frame-viewport rect -> top viewport rect, clipped to the iframe's content box.
@@ -533,7 +579,7 @@
   async function refreshFrames() {
     const list = [...document.querySelectorAll('iframe')];
     if (!list.length) return;
-    if (EXT) await probeFrames(list);
+    if (EXT || GM) await probeFrames(list);
     const req = ++reqSeq;
     const answered = new Set();
     return new Promise((resolve) => {
@@ -569,7 +615,7 @@
     f.answered = f.hasClient = false;
     f.scroll = undefined;
     f.misses = 0;
-    f.frameId = f.probe = null; // a new document: probe again
+    f.peer = f.probe = null; // a new document: probe again
   }
   // iframe load events don't bubble, but they can be caught on the way down.
   if (!IS_FRAME) document.addEventListener('load', (e) => { if (e.target?.tagName === 'IFRAME') resetFrame(frames.get(e.target)); }, true);
@@ -596,28 +642,25 @@
     return null;
   }
 
-  function frameOfId(id) {
-    for (const iframe of document.querySelectorAll('iframe')) { const f = frames.get(iframe); if (f && f.frameId === id) return f; }
+  function frameOfPeer(peer) {
+    for (const iframe of document.querySelectorAll('iframe')) { const f = frames.get(iframe); if (f && f.peer === peer) return f; }
     return null;
+  }
+  function fromPeer(peer, d) {
+    if (d.type === 'probe') { probeAnswered(d.nonce, peer); return; }
+    const f = frameOfPeer(peer);
+    if (f) fromFrame(f, d);
   }
 
   // Replies from clients. Extension: relayed by the background script with the sender's
-  // frame id (pages can't send these). Page script: only from our own child frames.
+  // frame id (pages can't send these). GM: tagged with the sender's inbox (only this script's
+  // isolated instances can write GM storage). Page script: only from our own child frames.
   if (!IS_FRAME && EXT) chrome.runtime.onMessage.addListener((m, sender) => {
     if (sender.id !== chrome.runtime.id || m?.sofanav !== 'fromFrame' || m.msg?.sofanav !== PROTO) return;
-    const d = m.msg;
-    if (d.type === 'probe') {
-      for (const iframe of document.querySelectorAll('iframe')) {
-        const f = frames.get(iframe);
-        if (f?.probe && f.probe === d.nonce) { f.frameId = m.frameId; f.probe = null; }
-      }
-      probeWaiters.forEach((w) => w());
-      return;
-    }
-    const f = frameOfId(m.frameId);
-    if (f) fromFrame(f, d);
+    fromPeer(m.frameId, m.msg);
   });
-  if (!IS_FRAME && !EXT) addEventListener('message', (e) => {
+  if (!IS_FRAME && GM) gmListen(fromPeer);
+  if (!IS_FRAME && !EXT && !GM) addEventListener('message', (e) => {
     const d = e.data;
     if (!d || d.sofanav !== PROTO) return;
     const f = frameOfSource(e.source);
@@ -691,6 +734,19 @@
       addEventListener('message', (e) => {
         if (e.source !== window.parent || typeof e.data?.sofanavProbe !== 'string') return;
         send({ type: 'probe', nonce: e.data.sofanavProbe.slice(0, 64) });
+      });
+    } else if (GM) {
+      // The engine's inbox comes with the probe; commands are accepted only from that inbox.
+      // A page can name any inbox here, but it can't write to ours, so the worst it can do is
+      // point us at an engine that isn't there (navigation into this frame stops working).
+      let engine = null;
+      send = (msg) => { if (engine) gmSend(engine, { sofanav: PROTO, ...msg }); };
+      gmListen((from, d) => { if (from === engine) handleCommand(d); });
+      addEventListener('message', (e) => {
+        const d = e.data;
+        if (e.source !== window.parent || typeof d?.sofanavProbe !== 'string' || typeof d.reply !== 'string' || !d.reply.startsWith(GM_PREFIX)) return;
+        engine = d.reply.slice(0, 64);
+        send({ type: 'probe', nonce: d.sofanavProbe.slice(0, 64) });
       });
     } else {
       let sameOrigin = false;
@@ -1264,7 +1320,8 @@
     if (el.matches(TEXT_LIKE)) { el.focus(); return; }
     if (el.tagName === 'SELECT') { el.focus(); try { el.showPicker(); } catch {} return; }
     const r = el.getBoundingClientRect();
-    const opts = { bubbles: true, cancelable: true, composed: true, view: window, button: 0,
+    // document.defaultView: the real Window (userscript managers may hand scripts a wrapped `window`).
+    const opts = { bubbles: true, cancelable: true, composed: true, view: document.defaultView, button: 0,
       clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
     const pOpts = { ...opts, pointerId: 1, pointerType: 'mouse', isPrimary: true };
     el.dispatchEvent(new PointerEvent('pointerdown', pOpts));
@@ -1308,7 +1365,7 @@
   }
 
   function switchTab(delta) {
-    try { chrome.runtime.sendMessage({ cmd: 'tab', delta }); } catch {}
+    if (EXT) extSend({ cmd: 'tab', delta });
   }
 
   // ---------- UI ----------

@@ -21,7 +21,9 @@ const { version } = JSON.parse(fs.readFileSync(path.join(__dirname, 'extension',
 const hash = crypto.createHash('sha256').update(src).digest('hex').slice(0, 12);
 const PLACEHOLDER = "const BUILD = 'dev';";
 if (!src.includes(PLACEHOLDER)) throw new Error(`${PLACEHOLDER} not found in content.js`);
-const body = src.replace(PLACEHOLDER, `const BUILD = '${hash}';`);
+const FLAG = 'const USERSCRIPT = false;';
+if (!src.includes(FLAG)) throw new Error(`${FLAG} not found in content.js`);
+const body = src.replace(PLACEHOLDER, `const BUILD = '${hash}';`).replace(FLAG, 'const USERSCRIPT = true;');
 
 // Keep the previous version if the code hasn't changed.
 let stamp = null;
@@ -43,11 +45,19 @@ const header = `// ==UserScript==
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
 // @match        *://*/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_info
+// @grant        GM_setValue
+// @grant        GM_deleteValue
+// @grant        GM_addValueChangeListener
+// @sandbox      DOM
+// @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
 // Build ${hash} = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
+// @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
+// reach it. Only then does it control cross-origin frames (over GM storage, see content.js
+// "frame transport"); without isolation it only enters same-origin frames.
 
 `;
 
