@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610122320
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build fff84d1e8ea6)
+// @version      0.3.0.202610122333
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 5ad5d579f036)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
@@ -16,7 +16,7 @@
 // @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build fff84d1e8ea6 = first 12 hex digits of sha256(extension/content.js).
+// Build 5ad5d579f036 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 // @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
 // reach it. Only then does it control cross-origin frames (over GM storage, see content.js
@@ -34,13 +34,14 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = 'fff84d1e8ea6';
+  const BUILD = '5ad5d579f036';
   const USERSCRIPT = true; // the userscript build sets this
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
   // Standard-mapping button indexes.
   const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
   const HOLD_BACK = 700; // ms holding B that always goes back a page
+  const CLOSE_WAIT = 1000; // ms to wait for a popup to finish closing after B's Escape
   const STICK_PRESS = 0.55; // stick deflection that counts as pushing
   const STICK_RELEASE = 0.45; // ...and that it must drop below to count as released (keep close to STICK_PRESS)
   const STICK_SETTLE = 40; // ms to let a stick push finish before reading its angle
@@ -222,14 +223,22 @@
     sendEscape(target || box);
     backNote(`Escape sent from ${brief(target || box)}`);
     const isOpen = () => box.isConnected && box.getBoundingClientRect().width >= 2 && getComputedStyle(box).visibility !== 'hidden';
-    await new Promise((r) => setTimeout(r, 250));
-    backNote(isOpen() ? 'still open' : 'closed');
-    if (!isOpen()) return true;
+    // Popups often animate out: X's menu and mask stay unchanged for ~300 ms after Escape, then
+    // vanish. So wait for it to go, up to CLOSE_WAIT, before deciding Escape didn't work.
+    const closed = async () => {
+      for (const t0 = performance.now(); performance.now() - t0 < CLOSE_WAIT;) {
+        if (!isOpen()) return true;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      return !isOpen();
+    };
+    if (await closed()) { backNote('closed'); return true; }
+    backNote('still open');
     if (trigger?.isConnected && trigger.getAttribute('aria-expanded') === 'true') { // menu buttons toggle
       activate(trigger);
-      await new Promise((r) => setTimeout(r, 250));
+      if (await closed()) { backNote('closed by its button'); return true; }
     }
-    return !isOpen();
+    return false;
   }
   const FOCUSABLE_SEL = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 

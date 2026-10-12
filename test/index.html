@@ -334,7 +334,13 @@
   document.getElementById('openDialog').onclick = () => document.getElementById('dlg').showModal();
   const xMenu = document.getElementById('xMenu'), menuLayer = document.getElementById('menuLayer');
   const xMask = document.getElementById('xMask');
-  const setX = (open) => { xMenu.hidden = xMask.hidden = !open; };
+  // Like X: after Escape the menu and mask stay as they are for ~300 ms (closing animation), then go.
+  let xClosing = null;
+  const setX = (open) => {
+    clearTimeout(xClosing);
+    if (open) xMenu.hidden = xMask.hidden = false;
+    else xClosing = setTimeout(() => { xMenu.hidden = xMask.hidden = true; }, 300);
+  };
   document.getElementById('menuBtn').onclick = () => { setX(true); document.querySelector('#xScroll a').focus(); };
   document.getElementById('xGroup').addEventListener('keydown', (e) => { if (e.key === 'Escape') setX(false); });
   xMask.addEventListener('click', () => setX(false));

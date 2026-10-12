@@ -470,6 +470,18 @@ SofaNav's element or the box. The test page now adds a mask beside the menu,
 keeps the menu off the sample points, and presses B with SofaNav on the
 account button (the report's state); fails on 29e2788.
 
+*Then: B closed the menu **and** went back a page.* Measured on x.com: after
+Escape, X's menu and mask stay exactly as they are (full size, opaque, focus
+inside) for ~300 ms, then vanish (closing animation). `dismissOpen` checked once
+at 250 ms, saw it "still open", and on the weak floating-box path B carried on
+to `history.back()` (on the mask path it would only have shown the toast). The
+weak path is taken whenever the menu covers one of `coveringOverlay`'s sample
+points, as on smaller screens. *Fix:* poll every 50 ms for up to `CLOSE_WAIT`
+(1 s) and count it closed as soon as the box goes. The test page's X-style menu
+now takes 300 ms to close, and the second B case widens it over a sample point
+so only the floating-box path sees it; fails on 8bc104f ("B went back a page,
+menu open=false").
+
 **E32. Mouse mode: an escape hatch for what focus navigation can't reach**
 (requested by the user after E31). Even with E31, some UI can't be handled by
 moving focus: popups that only close on an outside click, controls that only

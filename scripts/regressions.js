@@ -85,7 +85,11 @@ const checks = {
     const fromButton = await page.evaluate(() => ({ open: !document.getElementById('xMenu').hidden, hash: location.hash }));
     if (fromButton.hash !== '#before-menu') return { ok: false, detail: `B on the account button went back a page (menu open=${fromButton.open})` };
     if (fromButton.open) return { ok: false, detail: 'X-style menu still open after one B on the account button' };
-    // From the menu's scroll box, X then ↓ lands on the role="group" (the earlier report).
+    // From the menu's scroll box, X then ↓ lands on the role="group" (the earlier report). The
+    // menu takes 300 ms to close, like X's: B must wait for it, not decide it stayed and go back.
+    // Wider, so it covers one of coveringOverlay's sample points and the mask isn't recognised
+    // (as on smaller screens on X): only the weaker floating-box path sees the menu.
+    await page.evaluate(() => { document.getElementById('xMenu').style.width = '300px'; });
     await open('menuBtn', '#xScroll');
     await wait(300);
     await press('KeyX');
