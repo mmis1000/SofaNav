@@ -96,8 +96,10 @@ Then open http://localhost:8765/test/ (the cross-origin frame loads from
 
 ## Demo video
 
-[demo/webpad-demo.mp4](demo/webpad-demo.mp4) (≈50 s): D-pad, graph view, stick
-pie, post cards, a scrollable comments panel and cross-origin iframes.
+[demo/webpad-demo.mp4](demo/webpad-demo.mp4) (≈60 s): D-pad, graph view, stick
+pie, post cards, a scrollable comments panel, scrolling iframes (same- and
+cross-origin) as containers, and a non-scrolling iframe whose buttons belong to
+the page.
 
 To re-record (after changes), with the test server running:
 

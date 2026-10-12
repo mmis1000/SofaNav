@@ -161,6 +161,12 @@ const SIZE = { width: 1280, height: 720 };
   await press('x', 700); await log('X (enter)');
   await press('ArrowRight', 600); await log('→');
   await press('Enter', 900); await log('A (click in frame)');
+  await press('Backspace', 600); await log('B');
+
+  await section('Iframes', 'text=Left of flat frame', -60);
+  await caption("A frame that doesn't scroll has no stop: its buttons belong to the page");
+  await presses('ArrowRight', 4, 650); await log('→ x4 through the flat frame');
+  await wait(500);
 
   await caption('webpad — D-pad, free-aim stick, cards, scroll panels, iframes');
   await wait(2000);
