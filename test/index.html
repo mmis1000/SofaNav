@@ -42,7 +42,7 @@
 <header>
   <h1>Gamepad Nav Test</h1>
   <div>Controller: D-pad/left stick move · A click · B back · Y graph · LT/RT page · right stick scroll · View on/off</div>
-  <div>Keyboard fallback: arrows · Enter = A · Backspace = B · X = enter container · Y = graph · PgUp/PgDn = LT/RT · V = View · Q/E/Z/C = stick at 45° ↖↗↙↘ · J/L rotate aim, K = push stick at aim · Y twice = stick pie</div>
+  <div>Keyboard fallback: arrows · Enter = A · Backspace = B · X = enter container · Y = graph · PgUp/PgDn = LT/RT · V = View · M = Menu (debug report) · Q/E/Z/C = stick at 45° ↖↗↙↘ · J/L rotate aim, K = push stick at aim · Y twice = stick pie</div>
 </header>
 
 <h2>Store layout (from your screenshot)</h2>
@@ -266,7 +266,7 @@
   const virtualPad = { id: 'keyboard (virtual)', index: 99, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
     buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
   const KEYMAP = { ArrowUp: 12, ArrowDown: 13, ArrowLeft: 14, ArrowRight: 15, Enter: 0, Backspace: 1,
-    KeyX: 2, KeyY: 3, PageUp: 6, PageDown: 7, KeyV: 8 };
+    KeyX: 2, KeyY: 3, PageUp: 6, PageDown: 7, KeyV: 8, KeyM: 9 };
   const realGetGamepads = navigator.getGamepads.bind(navigator);
   let virtualActive = false;
   navigator.getGamepads = () => [...realGetGamepads(), ...(virtualActive ? [virtualPad] : [])];

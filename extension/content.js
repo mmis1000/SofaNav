@@ -1508,7 +1508,7 @@
   // Test pages can set window.__gpnDebug before loading this script to inspect state.
   if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
-  // Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
+  // Menu (☰) or Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
   async function debugReport() {
     await refreshFrames();
     const list = candidates();
@@ -1665,6 +1665,7 @@
       if (pressed(BTN.B)) back();
       if (pressed(BTN.Y)) cycleViz();
       if (pressed(BTN.X)) enterScope();
+      if (pressed(BTN.MENU)) debugReport(); // ☰: debug report (Alt+Shift+D can be taken by the page)
       if (pressed(BTN.LB)) switchTab(-1);
       if (pressed(BTN.RB)) switchTab(1);
       if (pressed(BTN.LT)) pageScroll(-1);

@@ -309,7 +309,9 @@ logged-in session). *Fix:* a move only starts from `current` if it is one of
 the current stops; otherwise focus re-anchors to the nearest stop first, as
 after scrolling away. Alt+Shift+D now logs what is focused and how it's
 classified (candidate, container, scroll box, scopes, modal) for reports like
-this. *Where:* `moveNow` (`startOk`), `debugReport`. *Checks:* 35a.
+this (on Twitter the shortcut didn't reach the script, so the controller's Menu
+(☰) button does the same). *Where:* `moveNow` (`startOk`), `debugReport`.
+*Checks:* 35a.
 
 **E25. The button hint could be off screen (reported on Twitter).** The hint went
 below the focused element, or above it if there was no room below; for a stop

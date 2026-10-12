@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
-// @version      0.3.0.202610121448
-// @build        561d4eb7c91a
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 561d4eb7c91a)
+// @version      0.3.0.202610121452
+// @build        d6c24fbc89ea
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build d6c24fbc89ea)
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 561d4eb7c91a = first 12 hex digits of sha256(extension/content.js).
+// Build d6c24fbc89ea = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // Gamepad spatial navigation: D-pad / left stick moves a focus ring between
@@ -21,7 +21,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '561d4eb7c91a';
+  const BUILD = 'd6c24fbc89ea';
   if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -1522,7 +1522,7 @@
   // Test pages can set window.__gpnDebug before loading this script to inspect state.
   if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
-  // Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
+  // Menu (☰) or Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
   async function debugReport() {
     await refreshFrames();
     const list = candidates();
@@ -1679,6 +1679,7 @@
       if (pressed(BTN.B)) back();
       if (pressed(BTN.Y)) cycleViz();
       if (pressed(BTN.X)) enterScope();
+      if (pressed(BTN.MENU)) debugReport(); // ☰: debug report (Alt+Shift+D can be taken by the page)
       if (pressed(BTN.LB)) switchTab(-1);
       if (pressed(BTN.RB)) switchTab(1);
       if (pressed(BTN.LT)) pageScroll(-1);

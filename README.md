@@ -52,8 +52,9 @@ docs/
 | LT / RT | Page up / down |
 | Right stick | Scroll (a focused scrollable panel scrolls itself, without entering) |
 | View | Turn navigation on/off |
+| Menu (☰) | Debug report: log the focused element and how it's classified to the console |
 | Alt+Shift+G (keyboard) | Same as Y |
-| Alt+Shift+D (keyboard) | Log the focused element and how it's classified to the console (for bug reports) |
+| Alt+Shift+D (keyboard) | Same as Menu (some sites swallow this shortcut; use Menu there) |
 
 ## How it works (short)
 
