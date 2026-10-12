@@ -252,26 +252,34 @@
     aim = ((aim + 540) % 360) - 180;
     document.getElementById('aim').textContent = aim + '°';
   }, true);
-  for (const type of ['keydown', 'keyup']) {
-    addEventListener(type, (e) => {
-      const stick = e.code === 'KeyK' ? aimVec() : STICK_KEYS[e.code];
-      if (stick && !typing() && !e.altKey && !e.ctrlKey) {
-        e.preventDefault();
-        if (type === 'keydown') virtualPad.axes = [...stick, 0, 0];
-        else setTimeout(() => (virtualPad.axes = [0, 0, 0, 0]), 60);
-        if (!virtualActive) { virtualActive = true; dispatchEvent(new Event('gamepadconnected')); }
-        return;
-      }
-      const i = KEYMAP[e.code];
-      if (i === undefined || e.altKey || e.ctrlKey || (typing() && i !== 1 && type === 'keydown')) return;
-      if (typing() && i === 1 && document.activeElement.value) return; // let Backspace delete text
+  // When focus is inside one of the test iframes, keys go to that frame; it forwards them here
+  // (frame.html). Without this a key-up is lost and the virtual button stays pressed.
+  addEventListener('message', (e) => {
+    const d = e.data;
+    if (d?.test !== 'key' || ![...document.querySelectorAll('iframe')].some((f) => f.contentWindow === e.source)) return;
+    onKey(d.type, { code: d.code, altKey: d.altKey, ctrlKey: d.ctrlKey, preventDefault() {} }, true);
+  });
+  // fromFrame: the key came from a test iframe; whether a text field is focused there is its business.
+  function onKey(type, e, fromFrame) {
+    const isTyping = fromFrame ? () => false : typing;
+    const stick = e.code === 'KeyK' ? aimVec() : STICK_KEYS[e.code];
+    if (stick && !isTyping() && !e.altKey && !e.ctrlKey) {
       e.preventDefault();
-      if (type === 'keydown') virtualPad.buttons[i] = { pressed: true, value: 1 };
-      // Release a little later so a quick tap still spans a polling frame.
-      else setTimeout(() => (virtualPad.buttons[i] = { pressed: false, value: 0 }), 60);
+      if (type === 'keydown') virtualPad.axes = [...stick, 0, 0];
+      else setTimeout(() => (virtualPad.axes = [0, 0, 0, 0]), 60);
       if (!virtualActive) { virtualActive = true; dispatchEvent(new Event('gamepadconnected')); }
-    }, true);
+      return;
+    }
+    const i = KEYMAP[e.code];
+    if (i === undefined || e.altKey || e.ctrlKey || (isTyping() && i !== 1 && type === 'keydown')) return;
+    if (isTyping() && i === 1 && document.activeElement.value) return; // let Backspace delete text
+    e.preventDefault();
+    if (type === 'keydown') virtualPad.buttons[i] = { pressed: true, value: 1 };
+    // Release a little later so a quick tap still spans a polling frame.
+    else setTimeout(() => (virtualPad.buttons[i] = { pressed: false, value: 0 }), 60);
+    if (!virtualActive) { virtualActive = true; dispatchEvent(new Event('gamepadconnected')); }
   }
+  for (const type of ['keydown', 'keyup']) addEventListener(type, (e) => onKey(type, e, false), true);
 
   // Status panel.
   setInterval(() => {

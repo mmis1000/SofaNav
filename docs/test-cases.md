@@ -234,6 +234,14 @@ enter, like TV app rows. *Where:* `addScrollBoxes`, `isScrollBox`,
   correctly "covered" and skipped. Scroll the frames section lower first.
 - **CSS class clashes in the test page** (`.card` already existed for the grid)
   broke a layout and looked like a script bug; the card section uses `.pcard`.
+- **Keyboard focus inside an iframe swallows the test page's key-ups.** When
+  navigation focuses an element inside a frame, keyboard focus moves into that
+  frame, so the test page's keyboard stand-in never saw the release and the
+  virtual button stayed pressed (focus kept repeating "up"). Real controllers
+  are unaffected (Gamepad API, not keys). `test/frame.html` now forwards its key
+  events to the test page. Found while scripting the demo video.
+- **Browser cache after moving/serving from a new folder**: the pane kept an old
+  `content.js`; force a reload (`fetch(url, {cache: 'reload'})`) or add a query string.
 - **`localhost` vs `127.0.0.1`** are different origins; the cross-origin frame
   depends on that, so open the test page via `localhost`.
 

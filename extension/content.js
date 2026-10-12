@@ -1329,7 +1329,7 @@
   if (IS_FRAME) { startClient(); return; }
 
   // Test pages can set window.__gpnDebug before loading this script to inspect state.
-  if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, current: () => current, lastMove: () => lastMove, scopes: () => scopes.slice() };
+  if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
   addEventListener('scroll', scheduleViz, { passive: true, capture: true });
   addEventListener('resize', scheduleViz, { passive: true });

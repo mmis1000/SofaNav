@@ -34,6 +34,16 @@
     if (b.id === 'hideMe') setTimeout(() => (b.style.visibility = 'hidden'), 150);
   });
 </script>
+<script>
+  // Test page keyboard fallback: when focus is in here, keys land in this frame.
+  // Forward them to the test page (which owns the virtual controller); stop arrows
+  // from scrolling this frame unless a text field is being edited.
+  for (const type of ['keydown', 'keyup']) addEventListener(type, (e) => {
+    parent.postMessage({ test: 'key', type, code: e.code, altKey: e.altKey, ctrlKey: e.ctrlKey }, '*');
+    const typing = document.activeElement?.matches('input, textarea');
+    if (!typing && /^(Arrow|Page|Space)/.test(e.code)) e.preventDefault();
+  }, true);
+</script>
 <!-- Stands in for the extension/userscript being injected into this frame. -->
 <script src="/extension/content.js"></script>
 </body>

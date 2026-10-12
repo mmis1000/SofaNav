@@ -15,6 +15,7 @@ extension/            the extension; content.js is the single source for everyth
   background.js       LB/RB tab switching (extension only)
   content.js          all navigation logic (engine in the top frame, client in iframes)
 build-userscript.js   builds dist/gamepad-nav.user.js from extension/content.js
+scripts/record-demo.js records demo/webpad-demo.mp4 with Playwright
 dist/                 generated userscript (do not edit)
 test/
   index.html          main test page, one section per behaviour / past bug
@@ -88,4 +89,23 @@ Then open http://localhost:8765/test/ (the cross-origin frame loads from
 - `?timer` drives polling with a timer instead of animation frames (for automated
   runs in a background tab).
 - The test pages set `window.__gpnDebug = true`, which exposes `window.__gpn`
-  (`candidates()`, `buildGraph()`, `current()`, `scopes()`, ...) for inspection.
+  (`candidates()`, `buildGraph()`, `current()`, `scopes()`, `focus(el)`,
+  `state()`, ...) for inspection and scripted tests.
+
+## Demo video
+
+[demo/webpad-demo.mp4](demo/webpad-demo.mp4) (≈50 s): D-pad, graph view, stick
+pie, post cards, a scrollable comments panel and cross-origin iframes.
+
+To re-record (after changes), with the test server running:
+
+```bash
+npm install
+npx playwright install chromium
+npm run demo
+```
+
+`scripts/record-demo.js` drives the test page with Playwright through the
+keyboard stand-in and the virtual stick, adds captions and an input badge, and
+writes `demo/webpad-demo.webm` plus an `.mp4` if ffmpeg is installed.
+`VERBOSE=1 npm run demo` logs where focus lands after every press.
