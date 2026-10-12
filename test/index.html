@@ -281,13 +281,27 @@
   <button type="button" id="stuckBtn">Overlay that ignores Escape</button>
   <button type="button" id="popBtn" popovertarget="pop">Popover menu</button>
 </div>
-<!-- Like X's account menu: no menu/dialog markup (role="group"), on a full-screen layer with a
-     click-to-close mask; Escape is handled on the menu itself. "Ignores Escape" opens it stuck. -->
+<!-- Like X's real account menu (checked on x.com): a small position:fixed box, no mask, no
+     menu/dialog markup, the button isn't marked expanded; a role="group" holds a scroll box
+     (a SofaNav container) of links, and Escape is handled on the group, so it must be sent
+     from inside it. -->
+<div id="xMenu" hidden style="position:fixed;left:40px;bottom:80px;width:300px;z-index:50;background:#2a2a2a;border:1px solid #555;border-radius:8px">
+  <div role="group" tabindex="0" id="xGroup">
+    <div id="xScroll" style="max-height:90px;overflow-y:auto;padding:8px">
+      <div><a href="#add" role="menuitem">Add an existing account</a></div>
+      <div><a href="#logout" role="menuitem">Log out</a></div>
+      <div><a href="#a3" role="menuitem">Settings</a></div>
+      <div><a href="#a4" role="menuitem">Help</a></div>
+      <div><a href="#a5" role="menuitem">Keyboard shortcuts</a></div>
+    </div>
+  </div>
+</div>
+<!-- Another site's menu: a full-screen layer with a click-to-close mask, ignoring Escape. -->
 <div id="menuLayer" hidden style="position:fixed;inset:0;z-index:50">
   <div id="menuMask" style="position:absolute;inset:0"></div>
   <div role="group" tabindex="0" id="menu" style="position:absolute;left:40px;bottom:80px;background:#2a2a2a;border:1px solid #555;border-radius:8px;padding:8px">
-    <div><button role="menuitem">Add an existing account</button></div>
-    <div><button role="menuitem">Log out</button></div>
+    <div><button>Stuck item 1</button></div>
+    <div><button>Stuck item 2</button></div>
   </div>
 </div>
 <!-- Native popover: ignores a scripted Escape, so SofaNav must use hidePopover(). -->
@@ -309,13 +323,11 @@
     if (el?.role === 'tab') document.querySelectorAll('[role=tab]').forEach((t) => t.setAttribute('aria-selected', t === el));
   });
   document.getElementById('openDialog').onclick = () => document.getElementById('dlg').showModal();
-  const menuLayer = document.getElementById('menuLayer');
-  let menuStuck = false;
-  const setMenu = (open, stuck = false) => { menuLayer.hidden = !open; menuStuck = stuck; };
-  document.getElementById('menuBtn').onclick = () => setMenu(true);
-  document.getElementById('stuckBtn').onclick = () => setMenu(true, true);
-  document.getElementById('menuMask').onclick = () => setMenu(false);
-  document.getElementById('menu').addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menuStuck) setMenu(false); });
+  const xMenu = document.getElementById('xMenu'), menuLayer = document.getElementById('menuLayer');
+  document.getElementById('menuBtn').onclick = () => { xMenu.hidden = false; document.querySelector('#xScroll a').focus(); };
+  document.getElementById('xGroup').addEventListener('keydown', (e) => { if (e.key === 'Escape') xMenu.hidden = true; });
+  document.getElementById('stuckBtn').onclick = () => { menuLayer.hidden = false; };
+  document.getElementById('menuMask').onclick = () => { menuLayer.hidden = true; };
   document.getElementById('ok').onclick = document.getElementById('cancel').onclick = () => document.getElementById('dlg').close();
 
   // Keyboard fallback: a virtual standard-mapping pad appended to the real ones.

@@ -438,8 +438,24 @@ won't close. *Where:* `activePopup`, `coveringOverlay`, `sendEscape`,
 `dismissOpen`, `back`, B handling in `tick`. *Checks:* automated
 (`test:regress`: an X-style `role="group"` menu on a mask, a native popover, an
 overlay that ignores Escape (B stays, hold B goes back)); fails on 883b834 ("B
-went back a page"). Not yet confirmed on x.com itself: whether X reacts to a
-scripted Escape was still being checked by hand.
+went back a page").
+
+*Then checked on x.com itself (logged in, in the built-in browser):* the
+geometry guess was wrong too. There is no mask: the menu is a small
+`position:fixed` 300×112 box (`data-testid="hoverCardParent"`) in a 0-height
+`#layers`; X puts DOM focus on the first item, which sits in an `overflow:auto`
+scroll box; the account button has no `aria-haspopup`/`aria-expanded`. A
+scripted Escape **does** close it, but only when sent from inside it (focused
+item, scroll box); from `body` or `document` nothing happens. So two more
+fixes: (a) `dismissOpen` sends Escape where a real key goes, the focused
+element (it had used SofaNav's current element, a wrapper around the handler's
+element, and events only bubble up); (b) a weak hint, `floatingBox`: the focus
+is inside a fixed box that touches no screen edge and covers under half the
+screen (on X that's only the menu; the fixed left nav and the search header
+touch edges). On that hint B sends Escape, and if the box stays, carries on as
+usual (leave scope / go back), since the hint is weaker than markup or a mask.
+Light popups are now closed before leaving a scope inside them. The test page's
+X-style menu copies X's real structure; fails on 883b834 and acd22c7.
 
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its

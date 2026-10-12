@@ -77,11 +77,17 @@ const checks = {
     }, [btn, sel]);
     await press('ArrowUp');
     await page.evaluate(() => { location.hash = 'before-menu'; });
-    await open('menuBtn', '#menu');
+    // As on X: from the menu's scroll box, X then ↓ lands on the role="group" (as in the user's
+    // debug report); one B must close the menu.
+    await open('menuBtn', '#xScroll');
     await wait(300);
+    await press('KeyX');
+    await press('ArrowDown');
+    const inside = await page.evaluate(() => { const c = __sofanav.current(); return c.id || c.tagName; });
     await press('Backspace', 700);
-    const menu = await page.evaluate(() => ({ open: !document.getElementById('menuLayer').hidden, hash: location.hash }));
+    const menu = await page.evaluate(() => ({ open: !document.getElementById('xMenu').hidden, hash: location.hash }));
     if (menu.hash !== '#before-menu') return { ok: false, detail: `B went back a page (X-style menu open=${menu.open})` };
+    if (menu.open) return { ok: false, detail: `X-style menu still open after one B from #${inside}` };
     await open('popBtn', '#pop button');
     await wait(300);
     await press('Backspace', 700);
@@ -93,7 +99,7 @@ const checks = {
     await page.keyboard.down('Backspace'); await wait(1000); await page.keyboard.up('Backspace'); await wait(500);
     const held = await page.evaluate(() => location.hash);
     const ok = !menu.open && !pop.open && pop.hash === '#before-menu' && stuck.hash === '#before-menu' && held === '';
-    return { ok, detail: `X-style menu open=${menu.open}, popover open=${pop.open}, stuck overlay: B ${stuck.hash === '#before-menu' ? 'stayed' : 'went back'}, hold B ${held === '' ? 'went back' : 'stayed'}` };
+    return { ok, detail: `X-style menu (B from #${inside}) open=${menu.open}, popover open=${pop.open}, stuck overlay: B ${stuck.hash === '#before-menu' ? 'stayed' : 'went back'}, hold B ${held === '' ? 'went back' : 'stayed'}` };
   },
 
   // E21: a frame that navigates to a page without the script must become one plain element.

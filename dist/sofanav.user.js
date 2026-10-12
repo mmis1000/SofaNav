@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121723
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 643003d32b0b)
+// @version      0.3.0.202610121748
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 9290799ed603)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
@@ -16,7 +16,7 @@
 // @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 643003d32b0b = first 12 hex digits of sha256(extension/content.js).
+// Build 9290799ed603 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 // @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
 // reach it. Only then does it control cross-origin frames (over GM storage, see content.js
@@ -34,7 +34,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '643003d32b0b';
+  const BUILD = '9290799ed603';
   const USERSCRIPT = true; // the userscript build sets this
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
@@ -181,6 +181,23 @@
     return null;
   }
 
+  // Weak hint: the user is inside a small box floating over the page. X's account menu is just
+  // that (a 300x112 position:fixed box, no menu markup, no mask, nothing marks its button as
+  // expanded). Fixed headers, sidebars and bottom bars touch a screen edge, so they don't count.
+  function floatingBox() {
+    const from = [document.activeElement, nodeOf(current)].filter((n) => n instanceof Element && n !== document.body);
+    for (const start of from) {
+      for (let n = start; n && n !== document.documentElement; n = n.parentElement) {
+        if (getComputedStyle(n).position !== 'fixed') continue;
+        const r = n.getBoundingClientRect();
+        const free = r.left > 1 && r.top > 1 && r.right < innerWidth - 1 && r.bottom < innerHeight - 1;
+        if (free && r.width * r.height < innerWidth * innerHeight * 0.5) return n;
+        break; // the nearest fixed ancestor decides
+      }
+    }
+    return null;
+  }
+
   // A scripted Escape (keydown + keyup). Pages' own handlers see it; browser defaults ignore it
   // (untrusted). Older handlers check keyCode/which, which the constructor leaves at 0.
   function sendEscape(target) {
@@ -192,15 +209,25 @@
   }
 
   // Something is open over the page (aria-modal dialog, floating menu, covering layer): one
-  // Escape attempt per B press, from where the user is (inside it if possible), never history.back.
+  // Escape attempt per B press. It goes where a real key would: the focused element (handlers
+  // sit on it or above it; events only bubble up, so sending from a wrapper around it, such as
+  // a scroll box, misses them). If nothing inside has focus: SofaNav's element, or the first
+  // focusable thing in it. Resolves true if it closed.
   async function dismissOpen(box, trigger) {
-    const here = [nodeOf(current), document.activeElement].filter((n) => n instanceof Element && n.isConnected);
-    sendEscape(here.find((n) => box.contains(n)) || here[0] || box);
+    const ae = document.activeElement, cur = nodeOf(current);
+    let target = ae && ae !== document.body && box.contains(ae) ? ae : null;
+    if (!target && cur instanceof Element && box.contains(cur)) target = cur.querySelector(FOCUSABLE_SEL) || cur;
+    sendEscape(target || box);
+    const isOpen = () => box.isConnected && box.getBoundingClientRect().width >= 2 && getComputedStyle(box).visibility !== 'hidden';
     await new Promise((r) => setTimeout(r, 250));
-    if (!box.isConnected || box.getBoundingClientRect().width < 2) return;
-    if (trigger?.isConnected && trigger.getAttribute('aria-expanded') === 'true') { activate(trigger); return; } // menu buttons toggle
-    say('Hold B to go back a page');
+    if (!isOpen()) return true;
+    if (trigger?.isConnected && trigger.getAttribute('aria-expanded') === 'true') { // menu buttons toggle
+      activate(trigger);
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return !isOpen();
   }
+  const FOCUSABLE_SEL = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
   function usable(el) {
     if (el instanceof RemoteEl) return remoteVisible(el);
@@ -1415,11 +1442,26 @@
     if (current instanceof RemoteEl && await askFrameBack(current.frame)) return;
     const ae = document.activeElement;
     if (ae && ae.matches?.(TEXT_LIKE)) { ae.blur(); return; }
-    if (activeScope() && await leaveScope()) return;
     const modal = activeModal();
     const popup = activePopup();
-    // Browser primitives first: these close for real (and respect a cancelled close request).
-    if (popup?.el.matches(':popover-open') && (!modal || modal.contains(popup.el))) { try { popup.el.hidePopover(); } catch {} return; }
+    const pop = popup && (!modal || modal.contains(popup.el)) ? popup : null;
+    // Popovers: the browser primitive closes them for real.
+    if (pop?.el.matches(':popover-open')) { try { pop.el.hidePopover(); } catch {} return; }
+    // Light popups (menus, flyouts, anything covering the page): close them first, even from a
+    // scope inside them (X's flyout is a scroll box); if one won't close, B leaves the scope,
+    // and never leaves the page: holding B does that.
+    const overlay = !pop && !modal ? coveringOverlay() : null;
+    const light = pop || (overlay ? { el: overlay } : null);
+    if (light) {
+      if (await dismissOpen(light.el, light.trigger)) return;
+      if (activeScope() && await leaveScope()) return;
+      say('Hold B to go back a page');
+      return;
+    }
+    // Weak hint (a small floating box): try Escape; if it stays, B carries on as usual.
+    const floating = !modal ? floatingBox() : null;
+    if (floating && await dismissOpen(floating)) return;
+    if (activeScope() && await leaveScope()) return;
     if (modal?.tagName === 'DIALOG') {
       // A script-dispatched Escape is untrusted, so browsers ignore it for <dialog>.
       // requestClose() is the real close request (fires cancel, honours preventDefault).
@@ -1428,10 +1470,7 @@
       return;
     }
     // Custom UI: anything that looks open gets an Escape instead of leaving the page.
-    if (popup && (!modal || modal.contains(popup.el))) { await dismissOpen(popup.el, popup.trigger); return; }
-    if (modal) { await dismissOpen(modal); return; }
-    const overlay = coveringOverlay();
-    if (overlay) { await dismissOpen(overlay); return; }
+    if (modal) { if (!await dismissOpen(modal)) say('Hold B to go back a page'); return; }
     wentBack = true;
     history.back();
   }
@@ -1804,7 +1843,7 @@
   if (IS_FRAME) { startClient(); return; }
 
   // Test pages can set window.__sofanavDebug before loading this script to inspect state.
-  if (window.__sofanavDebug) window.__sofanav = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
+  if (window.__sofanavDebug) window.__sofanav = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, back, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
   // Menu (☰) or Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
   async function debugReport() {
