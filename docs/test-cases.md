@@ -293,7 +293,7 @@ there), so `test/chat-frame.html` reproduces its structure. *Where:*
 **E23. Userscript updates were invisible.** Every build said `@version 0.2.0`, so
 userscript managers never offered the new code as an update, and there was no
 way to tell which build was running. *Fix:* the build stamps the userscript
-with a hash of `content.js` (`@build`, the description, a `[webpad] build …`
+with a hash of `content.js` (the description, a `// Build` comment, a `[webpad] build …`
 console line and the View toast) and a monotonic `@version 0.3.0.<UTC
 timestamp>`, kept unchanged when the code hasn't changed. *Where:*
 `build-userscript.js`, `BUILD` in `content.js`.

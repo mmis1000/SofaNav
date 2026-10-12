@@ -2,7 +2,6 @@
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
 // @version      0.3.0.202610121459
-// @build        d3345c23dabc
 // @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build d3345c23dabc)
 // @match        *://*/*
 // @run-at       document-idle

@@ -2,7 +2,9 @@
 // Usage: node build-userscript.js   (npm run build)
 //
 // The build is stamped with a hash of content.js so you can tell which copy is
-// running (console: "[webpad] build <hash>", and the View on/off toast). The
+// running (console: "[webpad] build <hash>", the View on/off toast, the
+// description, and a "// Build <hash>" comment after the metadata block, kept
+// out of the block itself because @build isn't a userscript key). The
 // @version gets a UTC timestamp suffix (0.3.0.202610121930) so userscript
 // managers see every code change as an update; rebuilding unchanged code keeps
 // the previous version, so the output (and git) stay unchanged.
@@ -25,7 +27,7 @@ const body = src.replace(PLACEHOLDER, `const BUILD = '${hash}';`);
 let stamp = null;
 if (fs.existsSync(outPath)) {
   const prev = fs.readFileSync(outPath, 'utf8');
-  const prevHash = prev.match(/^\/\/ @build\s+(\S+)/m)?.[1];
+  const prevHash = prev.match(/^\/\/ Build ([0-9a-f]+) =/m)?.[1];
   const prevVersion = prev.match(/^\/\/ @version\s+(\S+)/m)?.[1];
   if (prevHash === hash && prevVersion?.startsWith(version + '.')) stamp = prevVersion.slice(version.length + 1);
 }
@@ -35,7 +37,6 @@ const header = `// ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
 // @version      ${version}.${stamp}
-// @build        ${hash}
 // @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build ${hash})
 // @match        *://*/*
 // @run-at       document-idle

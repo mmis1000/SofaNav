@@ -32,8 +32,8 @@ docs/
   Add-on → `extension/manifest.json`.
 - **Userscript**: `npm run build` (or `node build-userscript.js`), then install
   `dist/gamepad-nav.user.js` in Tampermonkey/Violentmonkey. LB/RB do nothing there.
-  Each build is stamped with a hash of `content.js` (`@build`, shown in the
-  description, logged as `[webpad] build …` in the console, and in the View
+  Each build is stamped with a hash of `content.js` (shown in the
+  description and a `// Build <hash>` comment under the header, logged as `[webpad] build …` in the console, and in the View
   on/off toast) and gets a newer `@version` whenever the code changed, so the
   manager offers it as an update.
 - **Quick try on any page**: paste `dist/gamepad-nav.user.js` into the DevTools console.
