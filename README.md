@@ -52,7 +52,7 @@ docs/
 | LT / RT | Page up / down |
 | Right stick | Scroll (a focused scrollable panel scrolls itself, without entering) |
 | View | Turn navigation on/off |
-| Menu (☰) | Debug report: log the focused element and how it's classified to the console |
+| Menu (☰) | Debug report: log the focused element, how it's classified, and where each D-pad direction goes and why (graph / rescued / return / fallback) |
 | Alt+Shift+G (keyboard) | Same as Y |
 | Alt+Shift+D (keyboard) | Same as Menu (some sites swallow this shortcut; use Menu there) |
 
@@ -67,7 +67,7 @@ docs/
   take the angularly nearest element within `AIM_TOLERANCE`; wedges narrower than
   `MIN_WEDGE` are merged. The pie in the graph view is this exact table.
 - **"Go back"**: right after a move, pushing the reverse direction returns to
-  where you came from.
+  where you came from. In the graph view these arrows are dotted; rescued ones are dashed.
 - **Containers**: focusable elements with focusable contents, and scrollable
   panels holding focusable items, are one stop; X (or A for panels) enters (only
   its contents exist), B leaves. Scopes stack. Scrollable areas with nothing

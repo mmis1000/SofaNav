@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
-// @version      0.3.0.202610121459
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build d3345c23dabc)
+// @version      0.3.0.202610121508
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 088e774f24fd)
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build d3345c23dabc = first 12 hex digits of sha256(extension/content.js).
+// Build 088e774f24fd = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // Gamepad spatial navigation: D-pad / left stick moves a focus ring between
@@ -20,7 +20,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = 'd3345c23dabc';
+  const BUILD = '088e774f24fd';
   if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -843,8 +843,12 @@
     return { nodes, rects, edges, rescued, unreachable };
   }
 
+  // `via` says why: 'graph' (best score), 'rescued' (orphan rescue), 'fallback' (outside the graph area).
   function nextFrom(dir, el, list, graph) {
-    return graph.edges.get(el)?.[dir] || findNext(dir, el, list);
+    const e = graph.edges.get(el)?.[dir];
+    if (e) return { ...e, via: e.rescued ? 'rescued' : 'graph' };
+    const f = findNext(dir, el, list);
+    return f && { ...f, via: 'fallback' };
   }
 
   const isReturn = (angle, from) => from === current && lastMove?.to === from && usable(lastMove.from) &&
@@ -852,7 +856,7 @@
 
   // Where a D-pad press leads.
   function resolveCardinal(dir, from, list, graph) {
-    if (isReturn(DIR_ANGLE[dir], from)) return { to: lastMove.from };
+    if (isReturn(DIR_ANGLE[dir], from)) return { to: lastMove.from, via: 'return' }; // go back the way you came
     return nextFrom(dir, from, list, graph);
   }
 
@@ -1332,13 +1336,15 @@
   }
 
   // Rescued edges (see buildGraph) are drawn dashed.
-  function addArrow(dir, from, to, width, opacity, dashed) {
+  // via 'rescued' is dashed, 'return' (go back the way you came) dotted; see nextFrom/resolveCardinal.
+  function addArrow(dir, from, to, width, opacity, via) {
     const [x1, y1, x2, y2] = centerPoints(from.getBoundingClientRect(), to.getBoundingClientRect());
     const line = document.createElementNS(SVG_NS, 'line');
     // Element opacity (not stroke-opacity) so the arrowhead marker fades too.
     Object.entries({ x1, y1, x2, y2, stroke: VIZ_COLORS[dir], 'stroke-width': width, opacity,
       'marker-end': `url(#gpn-arrow-${dir})` }).forEach(([k, v]) => line.setAttribute(k, v));
-    if (dashed) line.setAttribute('stroke-dasharray', '6 4');
+    if (via === 'rescued') line.setAttribute('stroke-dasharray', '6 4');
+    if (via === 'return') { line.setAttribute('stroke-dasharray', '1 6'); line.setAttribute('stroke-linecap', 'round'); }
     vizLayer.append(line);
   }
 
@@ -1525,7 +1531,7 @@
       for (const el of visible) addBox(el, isContainer(el) ? '#bf5af2' : 'rgba(255,255,255,.35)', isContainer(el) ? 2 : 1.5, isContainer(el) ? '8 4' : '4 3');
       for (const el of visible) {
         for (const [dir, e] of Object.entries(neighbors(el, list, graph))) {
-          if (e) addArrow(dir, el, e.to, el === current ? 3 : 1.5, el === current ? 0.8 : 0.45, e.rescued);
+          if (e) addArrow(dir, el, e.to, el === current ? 3 : 1.5, el === current ? 0.8 : 0.45, e.via);
         }
       }
     } else if (current?.isConnected && vizInput === 'stick') {
@@ -1535,7 +1541,7 @@
       for (const [dir, e] of Object.entries(neighbors(current, list, graph))) {
         if (!e) continue;
         addBox(e.to, VIZ_COLORS[dir]);
-        addArrow(dir, current, e.to, 3, 0.8, e.rescued);
+        addArrow(dir, current, e.to, 3, 0.8, e.via);
       }
     }
     // Both modes: flag elements that plain nearest-neighbour scoring left orphaned.
@@ -1579,8 +1585,20 @@
         container: kidsOf(el), scrollBox: scrollBoxes.has(el), scrollOnly: scrollOnly.has(el), native: el.matches(SELECTOR),
       };
     };
+    // Where each D-pad direction would go from here, and why.
+    const brief = (el) => (el instanceof RemoteEl ? `frame ${el.frame.iframe.id || ''}#${el.id}`
+      : `${el.tagName.toLowerCase()}${el.getAttribute('data-testid') ? '[' + el.getAttribute('data-testid') + ']' : ''} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 24)}"`);
+    const targets = {};
+    if (current && list.includes(current)) {
+      const graph = buildGraph(list);
+      for (const dir of DIRS) {
+        const e = resolveCardinal(dir, current, list, graph);
+        targets[dir] = e ? { to: brief(e.to), via: e.via, el: e.to } : null;
+      }
+    }
     console.info('[webpad] debug', {
-      build: BUILD, url: location.href, current: describe(current), currentIsStop: list.includes(current),
+      build: BUILD, url: location.href, current: describe(current), currentIsStop: list.includes(current), targets,
+      lastMove: lastMove && { from: brief(lastMove.from), angle: Math.round(lastMove.angle) },
       scopes: scopes.map(describe), modal: describe(activeModal()), stops: list.length, scrolledAway,
       lastRect: lastRect && [lastRect.left, lastRect.top, lastRect.width, lastRect.height].map(Math.round),
     });
