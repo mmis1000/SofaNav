@@ -457,6 +457,19 @@ usual (leave scope / go back), since the hint is weaker than markup or a mask.
 Light popups are now closed before leaving a scope inside them. The test page's
 X-style menu copies X's real structure; fails on 883b834 and acd22c7.
 
+*Still failing on X (user's debug report with the new `lastBack`/`open`
+fields, build 971c074a2345):* on the user's (larger) screen X's transparent
+full-screen mask *was* detected (`overlay`), but it's a sibling of the menu,
+not around it; SofaNav's element was the account button and X's focus was on
+the first menu item, so Escape went out from the mask, outside the menu, and
+X's handler never saw it. On a smaller screen the menu covered one of the
+overlay check's sample points, so only the floating-box path ran, which is
+why my checks passed. *Fix:* Escape always goes to the focused element, like a
+real key, whatever box was detected; only with nothing focused does it use
+SofaNav's element or the box. The test page now adds a mask beside the menu,
+keeps the menu off the sample points, and presses B with SofaNav on the
+account button (the report's state); fails on 29e2788.
+
 **E32. Mouse mode: an escape hatch for what focus navigation can't reach**
 (requested by the user after E31). Even with E31, some UI can't be handled by
 moving focus: popups that only close on an outside click, controls that only

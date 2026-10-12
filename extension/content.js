@@ -186,13 +186,14 @@
   }
 
   // Something is open over the page (aria-modal dialog, floating menu, covering layer): one
-  // Escape attempt per B press. It goes where a real key would: the focused element (handlers
-  // sit on it or above it; events only bubble up, so sending from a wrapper around it, such as
-  // a scroll box, misses them). If nothing inside has focus: SofaNav's element, or the first
-  // focusable thing in it. Resolves true if it closed.
+  // Escape attempt per B press. It goes where a real key would: the focused element, wherever
+  // it is (handlers sit on it or above it; events only bubble up). `box` may not contain it:
+  // X's mask is a sibling of its menu, and X focuses the menu. Only with nothing focused:
+  // SofaNav's element (or the first focusable thing in it) if it's inside, else the box.
+  // Resolves true if the box closed.
   async function dismissOpen(box, trigger) {
     const ae = document.activeElement, cur = nodeOf(current);
-    let target = ae && ae !== document.body && box.contains(ae) ? ae : null;
+    let target = ae && ae !== document.body && ae !== document.documentElement ? ae : null;
     if (!target && cur instanceof Element && box.contains(cur)) target = cur.querySelector(FOCUSABLE_SEL) || cur;
     sendEscape(target || box);
     backNote(`Escape sent from ${brief(target || box)}`);

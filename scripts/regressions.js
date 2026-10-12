@@ -77,8 +77,15 @@ const checks = {
     }, [btn, sel]);
     await press('ArrowUp');
     await page.evaluate(() => { location.hash = 'before-menu'; });
-    // As on X: from the menu's scroll box, X then ↓ lands on the role="group" (as in the user's
-    // debug report); one B must close the menu.
+    // As in the user's report from x.com: SofaNav still on the account button, X's focus on the
+    // first menu item, a mask beside the menu. One B must close it.
+    await page.evaluate(() => { const b = document.getElementById('menuBtn'); b.scrollIntoView({ block: 'center' }); __sofanav.focus(b); b.click(); });
+    await wait(300);
+    await press('Backspace', 700);
+    const fromButton = await page.evaluate(() => ({ open: !document.getElementById('xMenu').hidden, hash: location.hash }));
+    if (fromButton.hash !== '#before-menu') return { ok: false, detail: `B on the account button went back a page (menu open=${fromButton.open})` };
+    if (fromButton.open) return { ok: false, detail: 'X-style menu still open after one B on the account button' };
+    // From the menu's scroll box, X then ↓ lands on the role="group" (the earlier report).
     await open('menuBtn', '#xScroll');
     await wait(300);
     await press('KeyX');
@@ -116,7 +123,7 @@ const checks = {
     await wait(300);
     await press('KeyF');
     r.on = await page.evaluate(() => !!__sofanav.mouse());
-    const blank = await page.evaluate(() => { for (let y = 60; y < innerHeight; y += 20) for (let x = innerWidth - 20; x > innerWidth / 2; x -= 40) { const e = document.elementFromPoint(x, y); if (e === document.body || e === document.documentElement) return [x, y]; } return null; });
+    const blank = await page.evaluate(() => { for (let y = 60; y < innerHeight; y += 20) for (let x = innerWidth - 20; x > innerWidth / 2; x -= 40) { const e = document.elementFromPoint(x, y); if (e === document.body || e === document.documentElement || e.id === 'xMask') return [x, y]; } return null; });
     await mouseTo(...blank);
     await press('Enter');
     r.menuClosed = await page.evaluate(() => document.getElementById('xMenu').hidden);

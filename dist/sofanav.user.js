@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121845
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 971c074a2345)
+// @version      0.3.0.202610122320
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build fff84d1e8ea6)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
@@ -16,7 +16,7 @@
 // @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 971c074a2345 = first 12 hex digits of sha256(extension/content.js).
+// Build fff84d1e8ea6 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 // @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
 // reach it. Only then does it control cross-origin frames (over GM storage, see content.js
@@ -34,7 +34,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '971c074a2345';
+  const BUILD = 'fff84d1e8ea6';
   const USERSCRIPT = true; // the userscript build sets this
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
@@ -210,13 +210,14 @@
   }
 
   // Something is open over the page (aria-modal dialog, floating menu, covering layer): one
-  // Escape attempt per B press. It goes where a real key would: the focused element (handlers
-  // sit on it or above it; events only bubble up, so sending from a wrapper around it, such as
-  // a scroll box, misses them). If nothing inside has focus: SofaNav's element, or the first
-  // focusable thing in it. Resolves true if it closed.
+  // Escape attempt per B press. It goes where a real key would: the focused element, wherever
+  // it is (handlers sit on it or above it; events only bubble up). `box` may not contain it:
+  // X's mask is a sibling of its menu, and X focuses the menu. Only with nothing focused:
+  // SofaNav's element (or the first focusable thing in it) if it's inside, else the box.
+  // Resolves true if the box closed.
   async function dismissOpen(box, trigger) {
     const ae = document.activeElement, cur = nodeOf(current);
-    let target = ae && ae !== document.body && box.contains(ae) ? ae : null;
+    let target = ae && ae !== document.body && ae !== document.documentElement ? ae : null;
     if (!target && cur instanceof Element && box.contains(cur)) target = cur.querySelector(FOCUSABLE_SEL) || cur;
     sendEscape(target || box);
     backNote(`Escape sent from ${brief(target || box)}`);

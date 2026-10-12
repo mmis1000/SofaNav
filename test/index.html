@@ -281,11 +281,12 @@
   <button type="button" id="stuckBtn">Overlay that ignores Escape</button>
   <button type="button" id="popBtn" popovertarget="pop">Popover menu</button>
 </div>
-<!-- Like X's real account menu (checked on x.com): a small position:fixed box, no mask, no
-     menu/dialog markup, the button isn't marked expanded; a role="group" holds a scroll box
-     (a SofaNav container) of links, and Escape is handled on the group, so it must be sent
-     from inside it. -->
-<div id="xMenu" hidden style="position:fixed;left:40px;bottom:80px;width:300px;z-index:50;background:#2a2a2a;border:1px solid #555;border-radius:8px">
+<!-- Like X's real account menu (checked on x.com): a small position:fixed box, no menu/dialog
+     markup, the button isn't marked expanded; a role="group" holds a scroll box (a SofaNav
+     container) of links, and Escape is handled on the group, so it must come from inside it.
+     A transparent full-screen mask sits *beside* the menu (not around it) and closes it on click. -->
+<div id="xMask" hidden style="position:fixed;inset:0;z-index:49"></div>
+<div id="xMenu" hidden style="position:fixed;left:16px;bottom:80px;width:150px;z-index:50;background:#2a2a2a;border:1px solid #555;border-radius:8px">
   <div role="group" tabindex="0" id="xGroup">
     <div id="xScroll" style="max-height:90px;overflow-y:auto;padding:8px">
       <div><a href="#add" role="menuitem">Add an existing account</a></div>
@@ -332,10 +333,13 @@
   });
   document.getElementById('openDialog').onclick = () => document.getElementById('dlg').showModal();
   const xMenu = document.getElementById('xMenu'), menuLayer = document.getElementById('menuLayer');
-  document.getElementById('menuBtn').onclick = () => { xMenu.hidden = false; document.querySelector('#xScroll a').focus(); };
-  document.getElementById('xGroup').addEventListener('keydown', (e) => { if (e.key === 'Escape') xMenu.hidden = true; });
+  const xMask = document.getElementById('xMask');
+  const setX = (open) => { xMenu.hidden = xMask.hidden = !open; };
+  document.getElementById('menuBtn').onclick = () => { setX(true); document.querySelector('#xScroll a').focus(); };
+  document.getElementById('xGroup').addEventListener('keydown', (e) => { if (e.key === 'Escape') setX(false); });
+  xMask.addEventListener('click', () => setX(false));
   // Like X: a press outside the menu closes it.
-  document.addEventListener('pointerdown', (e) => { if (!xMenu.hidden && !xMenu.contains(e.target) && e.target.id !== 'menuBtn') xMenu.hidden = true; });
+  document.addEventListener('pointerdown', (e) => { if (!xMenu.hidden && !xMenu.contains(e.target) && e.target.id !== 'menuBtn') setX(false); });
   const hoverCard = document.getElementById('hoverCard'), hoverTools = document.getElementById('hoverTools');
   hoverCard.addEventListener('mouseenter', () => { hoverTools.style.display = 'block'; });
   hoverCard.addEventListener('mouseleave', () => { hoverTools.style.display = 'none'; });
