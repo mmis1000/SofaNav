@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
-// @version      0.3.0.202610121336
-// @build        2a82dbe326cb
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 2a82dbe326cb)
+// @version      0.3.0.202610121443
+// @build        52a3fe442ff2
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 52a3fe442ff2)
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 2a82dbe326cb = first 12 hex digits of sha256(extension/content.js).
+// Build 52a3fe442ff2 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // Gamepad spatial navigation: D-pad / left stick moves a focus ring between
@@ -21,7 +21,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '2a82dbe326cb';
+  const BUILD = '52a3fe442ff2';
   if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -1081,7 +1081,11 @@
     const list = candidates();
     const dir = dominantDir(angle);
     // Focus may be mid smooth-scroll into view; only re-enter if the user scrolled it away.
-    const startOk = current && usable(current) && (!scrolledAway || inViewport(current.getBoundingClientRect()));
+    // Focus must be one of the current stops: on SPA page changes (Twitter) an element can stop
+    // being a stop (a loading area that filled with posts) while staying on screen. Moving from
+    // it would skip everything inside it, so re-anchor like after scrolling away.
+    const startOk = current && usable(current) && list.includes(current) &&
+      (!scrolledAway || inViewport(current.getBoundingClientRect()));
     if (!startOk) {
       const entry = (current && reentryPoint(current, list)) || entryPoint(dir, list);
       // Nothing visible to land on (e.g. a blank stretch of a scrolled frame): keep scrolling, within the scope.
@@ -1510,10 +1514,37 @@
   // Test pages can set window.__gpnDebug before loading this script to inspect state.
   if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
+  // Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
+  async function debugReport() {
+    await refreshFrames();
+    const list = candidates();
+    const describe = (el) => {
+      if (!el) return null;
+      if (el instanceof RemoteEl) {
+        return { frame: el.frame.iframe.id || el.frame.iframe.src.slice(0, 60), id: el.id, kids: el.kids, scroll: el.scrollInfo, scrollOnly: el.scrollOnly, alive: el.alive };
+      }
+      const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+      return {
+        el, tag: el.tagName.toLowerCase(), id: el.id, role: el.getAttribute('role'), tabindex: el.getAttribute('tabindex'),
+        testid: el.getAttribute('data-testid'), label: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 40),
+        rect: [r.left, r.top, r.width, r.height].map(Math.round), overflow: cs.overflowX + '/' + cs.overflowY,
+        scroll: `${el.scrollHeight}/${el.clientHeight}`, connected: el.isConnected, usable: usable(el), gone: gone(el),
+        container: kidsOf(el), scrollBox: scrollBoxes.has(el), scrollOnly: scrollOnly.has(el), native: el.matches(SELECTOR),
+      };
+    };
+    console.info('[webpad] debug', {
+      build: BUILD, url: location.href, current: describe(current), currentIsStop: list.includes(current),
+      scopes: scopes.map(describe), modal: describe(activeModal()), stops: list.length, scrolledAway,
+      lastRect: lastRect && [lastRect.left, lastRect.top, lastRect.width, lastRect.height].map(Math.round),
+    });
+    say('webpad debug info written to the console');
+  }
+
   addEventListener('scroll', scheduleViz, { passive: true, capture: true });
   addEventListener('resize', scheduleViz, { passive: true });
   addEventListener('keydown', (e) => {
     if (e.altKey && e.shiftKey && e.code === 'KeyG') { e.preventDefault(); cycleViz(); }
+    if (e.altKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); debugReport(); }
   }, true);
 
   // Mouse use hides the ring; the next controller input brings it back.

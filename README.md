@@ -53,6 +53,7 @@ docs/
 | Right stick | Scroll (a focused scrollable panel scrolls itself, without entering) |
 | View | Turn navigation on/off |
 | Alt+Shift+G (keyboard) | Same as Y |
+| Alt+Shift+D (keyboard) | Log the focused element and how it's classified to the console (for bug reports) |
 
 ## How it works (short)
 

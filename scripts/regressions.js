@@ -136,6 +136,27 @@ const checks = {
     const t1 = await top();
     return { ok: stop && t1 < t0 - 100, detail: `scroll stop=${stop} right stick: scrollTop ${Math.round(t0)}→${Math.round(t1)}` };
   },
+
+  // E24: focus left on an element that is no longer a stop (Twitter: the timeline column after a
+  // page change) must re-anchor onto a stop, not skip everything inside it.
+  async 'E24 focus on a non-stop wrapper re-anchors instead of skipping its contents'(page) {
+    const { press, wait } = helpers(page);
+    await press('ArrowUp');
+    await page.evaluate(async () => {
+      const feed = document.querySelector('.feed');
+      feed.scrollIntoView({ block: 'center' });
+      await new Promise((r) => setTimeout(r, 300));
+      __gpn.focus(feed); // simulate the desync: focus on a wrapper that isn't a stop
+    });
+    await wait(300);
+    await press('ArrowDown');
+    const r = await page.evaluate(() => {
+      const c = __gpn.current();
+      const card = c?.closest?.('[data-post]');
+      return { card: card?.dataset.post || null, what: c ? (c.className || c.tagName) + ' ' + (c.textContent || '').trim().slice(0, 20) : 'none' };
+    });
+    return { ok: !!r.card, detail: `after ↓: ${r.card ? 'card ' + r.card : r.what}` };
+  },
 };
 
 (async () => {

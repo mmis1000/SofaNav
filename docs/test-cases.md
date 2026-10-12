@@ -83,6 +83,7 @@ section heading on that page.
 | 32 | Containers | B, B → quoted post, card 2, top level | Guards E16: B leaves one level at a time | `back`, `leaveScope` |
 | 33 | Containers | A on a card → "open post N" | Core: A keeps the container's own click | `activate` |
 | 34 | Containers | Enter card 3, remove it in devtools → scope ends, focus recovers nearby | Guards E16 + E12: recycled feed items (Twitter) | `checkScopes`, `recoverFocus` |
+| 35a | Containers | Put focus on the `.feed` wrapper (debug hook, simulating a desync), ↓ → lands on a card, not past the whole feed (automated) | Guards E24 | `moveNow` (`startOk` requires a current stop) |
 | 35 | Containers | "Only child" wrapper → the button is a normal target | Guards E16: single-item wrappers aren't containers | `layer` (ignored set) |
 | 36 | Scroll box | → from "Before panel" → the comments panel is one stop, hint "A/X enter (n) · right stick scrolls" | Guards E17: scrollable areas are containers even when not focusable | `addScrollBoxes`, `isScrollBox`, `updateHint` |
 | 37 | Scroll box | With the panel focused (not entered), right stick down → the panel scrolls, focus stays on it | Guards E17: scroll a panel directly | `scrollTarget` |
@@ -294,6 +295,20 @@ with a hash of `content.js` (`@build`, the description, a `[webpad] build …`
 console line and the View toast) and a monotonic `@version 0.3.0.<UTC
 timestamp>`, kept unchanged when the code hasn't changed. *Where:*
 `build-userscript.js`, `BUILD` in `content.js`.
+
+**E24. Focus out of sync with the stops after a page change (reported on Twitter).**
+After an SPA navigation the graph view showed each post as a stop, but the focus
+ring sat on the whole timeline column, which wasn't a stop. Moving from there
+skipped every post (all are inside the focused element, and moves never go to
+an element's own descendants). Likely sequence: the old focused element
+vanished, recovery picked the column while the timeline was still loading
+(briefly a stop: an empty scrolling area or a container), and focus stayed
+there after the posts arrived. Not reproduced on Twitter itself (needs a
+logged-in session). *Fix:* a move only starts from `current` if it is one of
+the current stops; otherwise focus re-anchors to the nearest stop first, as
+after scrolling away. Alt+Shift+D now logs what is focused and how it's
+classified (candidate, container, scroll box, scopes, modal) for reports like
+this. *Where:* `moveNow` (`startOk`), `debugReport`. *Checks:* 35a.
 
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its
