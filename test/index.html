@@ -198,6 +198,14 @@
   };
 </script>
 
+<h2>Live chat frames — the frame doesn't scroll, the message list inside it does</h2>
+<div class="row" style="align-items:flex-start">
+  <button>Before chats</button>
+  <iframe id="chatPlain" title="chat, no buttons in messages" src="chat-frame.html?plain" style="width:280px;height:300px;border:2px solid #555;border-radius:6px"></iframe>
+  <iframe id="chatMenus" title="chat, menu button per message" src="chat-frame.html" style="width:280px;height:300px;border:2px solid #555;border-radius:6px"></iframe>
+  <button>After chats</button>
+</div>
+
 <h2>Orphan case — E is never the nearest target from anywhere (should be rescued, amber outline)</h2>
 <div style="position:relative;height:260px;margin:0 24px">
   <button style="position:absolute;left:0;top:0;width:60px">A</button>

@@ -32,6 +32,10 @@ docs/
   Add-on → `extension/manifest.json`.
 - **Userscript**: `npm run build` (or `node build-userscript.js`), then install
   `dist/gamepad-nav.user.js` in Tampermonkey/Violentmonkey. LB/RB do nothing there.
+  Each build is stamped with a hash of `content.js` (`@build`, shown in the
+  description, logged as `[webpad] build …` in the console, and in the View
+  on/off toast) and gets a newer `@version` whenever the code changed, so the
+  manager offers it as an update.
 - **Quick try on any page**: paste `dist/gamepad-nav.user.js` into the DevTools console.
 
 ## Controls
@@ -64,7 +68,9 @@ docs/
   where you came from.
 - **Containers**: focusable elements with focusable contents, and scrollable
   panels holding focusable items, are one stop; X (or A for panels) enters (only
-  its contents exist), B leaves. Scopes stack.
+  its contents exist), B leaves. Scopes stack. Scrollable areas with nothing
+  focusable inside (e.g. a live chat) are stops the right stick scrolls. All of
+  this works inside iframes too.
 - **Frames**: the top frame is the engine; each iframe runs the same script as a
   client that reports its elements (postMessage) and executes commands. Frame
   elements become proxies with translated rects, so all logic treats them alike.

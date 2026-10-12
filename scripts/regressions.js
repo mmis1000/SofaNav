@@ -87,6 +87,55 @@ const checks = {
     const detail = `before hasClient=${before}; after hasClient=${after.hasClient} plain=${after.frameIsElement} stale proxies=${after.staleProxies}`;
     return { ok: before && !after.hasClient && after.frameIsElement && after.staleProxies === 0, detail };
   },
+
+  // E22: a scrolling list inside a non-scrolling frame (YouTube live chat) is a container you can
+  // enter; past its visible part the list scrolls; B returns to it.
+  async 'E22 chat list inside a frame is an enterable scroll container'(page) {
+    const { press, wait } = helpers(page);
+    await page.evaluate(() => { history.back = () => {}; });
+    await press('ArrowUp');
+    await page.evaluate(async () => {
+      const f = document.getElementById('chatMenus');
+      f.scrollIntoView({ block: 'center' });
+      f.contentDocument.getElementById('item-scroller').scrollTop = 1e6;
+      await new Promise((r) => setTimeout(r, 300));
+      await __gpn.refreshFrames(); await __gpn.refreshFrames();
+      __gpn.focus([...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Before chats'));
+    });
+    const listTop = () => page.evaluate(() => document.getElementById('chatMenus').contentDocument.getElementById('item-scroller').scrollTop);
+    const atList = () => page.evaluate(() => { const c = __gpn.current(); return !!c && !c.tagName && c.frame.iframe.id === 'chatMenus' && __gpn.isScrollContainer(c); });
+    for (let i = 0; i < 3 && !(await atList()); i++) await press('ArrowRight');
+    const onList = await atList();
+    await press('Enter'); // A enters the list
+    const entered = await page.evaluate(() => __gpn.scopes().length === 1);
+    const before = await listTop();
+    for (let i = 0; i < 12; i++) await press('ArrowUp', 350);
+    const after = await listTop();
+    await press('Backspace');
+    const back = await page.evaluate(() => __gpn.scopes().length === 0) && await atList();
+    return { ok: onList && entered && after < before - 50 && back, detail: `list stop=${onList} entered=${entered} list scrollTop ${Math.round(before)}→${Math.round(after)} B back on list=${back}` };
+  },
+
+  // E22: the same list with nothing focusable in it is still a stop the right stick scrolls.
+  async 'E22 chat list without buttons is a right-stick scroll stop'(page) {
+    const { press, wait } = helpers(page);
+    await press('ArrowUp');
+    await page.evaluate(async () => {
+      const h = [...document.querySelectorAll('h2')].find((x) => x.textContent.startsWith('Live chat frames'));
+      scrollTo({ top: h.getBoundingClientRect().top + scrollY - 60 });
+      await new Promise((r) => setTimeout(r, 300));
+      await __gpn.refreshFrames(); await __gpn.refreshFrames();
+      __gpn.focus([...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Before chats'));
+    });
+    await wait(300);
+    await press('ArrowRight');
+    const stop = await page.evaluate(() => { const c = __gpn.current(); return !!c && !c.tagName && c.frame.iframe.id === 'chatPlain' && __gpn.isScrollStop(c); });
+    const top = () => page.evaluate(() => document.getElementById('chatPlain').contentDocument.getElementById('item-scroller').scrollTop);
+    const t0 = await top();
+    await page.evaluate(() => (virtualPad.axes = [0, 0, 0, -0.9])); await wait(600); await page.evaluate(() => (virtualPad.axes = [0, 0, 0, 0])); await wait(300);
+    const t1 = await top();
+    return { ok: stop && t1 < t0 - 100, detail: `scroll stop=${stop} right stick: scrollTop ${Math.round(t0)}→${Math.round(t1)}` };
+  },
 };
 
 (async () => {

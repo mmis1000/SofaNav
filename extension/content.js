@@ -6,6 +6,9 @@
   // In a frame this script is only a client: it reports its elements to the
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
+  // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
+  const BUILD = 'dev';
+  if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.
   const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
@@ -146,24 +149,28 @@
     const modal = activeModal();
     // Cheap position check first: elements far off screen are never targets (scrolling reaches them).
     const found = collect(modal || document, []).filter((el) => nearViewport(el.getBoundingClientRect()) && usable(el));
-    if (IS_FRAME) return found; // prototype: no containers inside frames, they report everything
     addScrollBoxes(found);
+    addScrollOnlyBoxes(found);
     // Only the top layer of the current scope: a container's contents stay hidden until it is entered (X).
+    // Frames do this too, against their own scope stack (kept in step by the top frame).
     const scope = activeScope(modal);
     const all = layer(found, scope);
+    if (IS_FRAME) return all; // nested frames aren't handled
     // Elements inside iframes appear as RemoteEl proxies; an iframe without a client is one plain element.
+    const remoteScope = scope instanceof RemoteEl ? scope : null;
     for (const iframe of document.querySelectorAll('iframe')) {
       if (modal && !modal.contains(iframe)) continue;
-      if (scope ? !scope.contains(iframe) : insideContainer(iframe)) continue;
+      // Inside a container that lives in a frame, only that frame's (already scoped) elements exist.
+      if (remoteScope ? remoteScope.frame.iframe !== iframe : scope ? !scope.contains(iframe) : insideContainer(iframe)) continue;
       const f = frameState(iframe);
-      if (f.hasClient && f.scroll?.scrollable && scope !== iframe) {
+      if (f.hasClient && f.scroll?.scrollable && scope !== iframe && !remoteScope) {
         // A frame whose page scrolls is a scroll container like any panel: one stop until entered.
         if (usable(iframe)) {
           all.push(iframe);
           scrollBoxes.add(iframe);
           containerKids.set(iframe, [...f.remotes.values()].filter(remoteVisible).length);
         }
-      } else if (f.hasClient) { for (const r of f.remotes.values()) if (remoteVisible(r)) all.push(r); }
+      } else if (f.hasClient) { for (const r of f.remotes.values()) if (!r.isScope && remoteVisible(r)) all.push(r); }
       else if (usable(iframe)) all.push(iframe);
     }
     return all;
@@ -179,6 +186,10 @@
   // single item (the item itself is kept).
 
   const BIG_CONTAINER = 0.5; // share of the viewport above which a container is ignored
+  // In a frame, "the viewport" for that rule is the top window (sent with each snapshot
+  // request): a chat list filling its small chat frame is a container, not the page.
+  let topViewportArea = null;
+  const viewportArea = () => topViewportArea || innerWidth * innerHeight;
   const scopes = []; // entered containers, innermost last
   let containerKids = new Map(); // container -> number of items inside (from the last candidates() call)
   let outerOf = new Map(); // element -> its effective container (or null)
@@ -189,8 +200,11 @@
   // isn't inside it is open (then the dialog is the boundary until it closes).
   function activeScope(modal = activeModal()) {
     const top = scopes[scopes.length - 1] || null;
-    return top && (!modal || modal.contains(top)) ? top : null;
+    return top && (!modal || modal.contains(nodeOf(top))) ? top : null;
   }
+
+  // The DOM node standing for an element: a frame element's iframe.
+  const nodeOf = (el) => (el instanceof RemoteEl ? el.frame.iframe : el);
 
   // From candidates, keep those directly inside `scope` (or at top level) and
   // record which of them are containers.
@@ -208,7 +222,7 @@
       const p = parentOf.get(el);
       if (p) (kids.get(p) || kids.set(p, []).get(p)).push(el);
     }
-    const vpArea = innerWidth * innerHeight;
+    const vpArea = viewportArea();
     const ignored = new Set();
     for (const [c, ks] of kids) {
       if (scopes.includes(c)) continue;
@@ -234,7 +248,9 @@
     return false;
   }
 
-  const isContainer = (el) => !(el instanceof RemoteEl) && (containerKids.get(el) || 0) > 0;
+  // Items inside a container (frame containers report their own count).
+  const kidsOf = (el) => (el instanceof RemoteEl ? el.kids || 0 : containerKids.get(el) || 0);
+  const isContainer = (el) => kidsOf(el) > 0;
 
   // Scrollable areas (comment panels, chat, side lists) are containers too, even
   // when the page didn't make them focusable: one stop whose contents you enter
@@ -263,12 +279,47 @@
     }
   }
 
-  const isScrollContainer = (el) => scrollBoxes.has(el) && isContainer(el);
+  // Scroll boxes with nothing focusable inside (live chat, logs, code blocks):
+  // still a stop, so the right stick can scroll them; there is nothing to enter.
+  let scrollOnly = new Set(); // from the last candidates() call
+  const SCROLL_SCAN_MS = 1000; // finding them means checking every element, so the scan is reused this long
+  const MIN_SCROLL_BOX = [120, 60]; // px; smaller scrolling areas aren't worth a stop
+  let scanBoxes = [], scanAt = -Infinity;
+
+  function addScrollOnlyBoxes(found) {
+    scrollOnly = new Set();
+    const now = performance.now();
+    if (now - scanAt > SCROLL_SCAN_MS) {
+      scanAt = now;
+      scanBoxes = [];
+      const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_ELEMENT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        // Cheap size test first; computed style only for elements that overflow at all.
+        if (n.scrollHeight > n.clientHeight + 1 || n.scrollWidth > n.clientWidth + 1) if (isScrollBox(n)) scanBoxes.push(n);
+      }
+    }
+    const vpArea = viewportArea();
+    for (const n of scanBoxes) {
+      if (scrollBoxes.has(n) || !n.isConnected || !isScrollBox(n)) continue;
+      const r = n.getBoundingClientRect();
+      if (!inViewport(r) || r.width < MIN_SCROLL_BOX[0] || r.height < MIN_SCROLL_BOX[1]) continue;
+      if (r.width * r.height > vpArea * BIG_CONTAINER || !usable(n)) continue; // page-sized: that's the page scrolling
+      scrollBoxes.add(n);
+      scrollOnly.add(n);
+      if (!found.includes(n)) found.push(n);
+    }
+  }
+
+  const isScrollContainer = (el) => (el instanceof RemoteEl ? !!el.scrollInfo : scrollBoxes.has(el)) && isContainer(el);
+  // A stop the right stick scrolls: a scroll container, or a scroll box with nothing to enter.
+  const isScrollStop = (el) => isScrollContainer(el) ||
+    (el instanceof RemoteEl ? !!el.scrollInfo && el.scrollOnly : scrollOnly.has(el));
   // A scroll box the page itself doesn't treat as clickable: A enters it instead of clicking.
-  const enterOnA = (el) => isScrollContainer(el) && !el.matches(SELECTOR);
+  const enterOnA = (el) => isScrollContainer(el) && !(el instanceof RemoteEl ? el.native : el.matches(SELECTOR));
 
   // Room left to scroll el in a direction.
   function canScroll(el, dir) {
+    if (el instanceof RemoteEl) return !!el.scrollInfo?.[dir];
     if (el.tagName === 'IFRAME') {
       const s = frameState(el).scroll;
       if (!s) return false;
@@ -281,14 +332,19 @@
   }
 
   // What the right stick / LT / RT scroll: a focused scroll box itself, else whatever contains focus.
-  const scrollTarget = (axis) => (current && isScrollContainer(current) ? current : scrollParent(current, axis));
+  const scrollTarget = (axis) => (current && isScrollStop(current) ? current : scrollParent(current, axis));
 
-  function enterScope() {
+  async function enterScope() {
     if (!current || !isContainer(current)) return;
     const container = current;
     scopes.push(container);
-    const list = candidates().filter((el) => !(el instanceof RemoteEl) || container.contains(el.frame.iframe));
-    if (!list.length) { scopes.pop(); return; }
+    if (container instanceof RemoteEl) {
+      // The frame scopes its own snapshot; ask for a fresh one taken inside the container.
+      postToFrame(container.frame, { type: 'enter', id: container.id });
+      await refreshFrames();
+    }
+    const list = candidates();
+    if (!list.length) { leaveScopeTop(); return; }
     // First item in reading order, preferring ones on screen.
     const onScreen = list.filter((el) => inViewport(el.getBoundingClientRect()));
     const order = (el) => { const r = el.getBoundingClientRect(); return Math.round(r.top / 16) * 100000 + r.left; };
@@ -297,10 +353,18 @@
     setCurrent(first);
   }
 
-  function leaveScope() {
+  // Pop the innermost scope (telling its frame, if it lives in one).
+  function leaveScopeTop() {
     const container = scopes.pop();
+    if (container instanceof RemoteEl) postToFrame(container.frame, { type: 'leave' });
+    return container;
+  }
+
+  async function leaveScope() {
+    const container = leaveScopeTop();
     if (!container) return false;
     lastMove = null;
+    if (container instanceof RemoteEl) await refreshFrames(); // the frame lists the container again
     candidates(); // refresh container info for the hint
     if (container.isConnected && !gone(container)) setCurrent(container);
     else recoverFocus();
@@ -313,7 +377,7 @@
     while (scopes.length) {
       const top = scopes[scopes.length - 1];
       if (top.isConnected && !gone(top)) break;
-      scopes.pop();
+      leaveScopeTop();
       changed = true;
     }
     if (changed) { candidates(); recoverFocus(); updateHint(); }
@@ -345,6 +409,11 @@
       this.text = false; // text input (A focuses it instead of clicking)
       this.alive = false; // present in the latest snapshot
       this.goneFlag = false; // the frame reported it removed/hidden
+      this.kids = 0; // items inside, if it's a container
+      this.scrollInfo = null; // {up, down, left, right}: room to scroll, if it's a scroll box
+      this.scrollOnly = false; // scroll box with nothing focusable inside
+      this.native = false; // focusable/clickable in its own right
+      this.isScope = false; // the frame's current scope (reported only to stay alive)
     }
     get isConnected() { return this.frame.iframe.isConnected && this.alive && !this.goneFlag; }
     getBoundingClientRect() { return toTop(this.frame, this.local); }
@@ -417,7 +486,7 @@
         applySnapshot(f, d);
         if (answered.size === list.length) done();
       });
-      for (const iframe of list) postToFrame(frameState(iframe), { type: 'snapshot', req });
+      for (const iframe of list) postToFrame(frameState(iframe), { type: 'snapshot', req, vpArea: innerWidth * innerHeight });
     }).then(() => {
       // A frame that has never answered has no client (sandboxed, blocked...): it stays one plain element.
       // One that stops answering (client gone without a load event) becomes one after FRAME_MISSES rounds;
@@ -455,7 +524,8 @@
     const next = new Map();
     for (const item of d.items) {
       const r = f.remotes.get(item.id) || new RemoteEl(f, item.id);
-      Object.assign(r, { local: item.rect, anc: item.anc, text: item.text, alive: true, goneFlag: false });
+      Object.assign(r, { local: item.rect, anc: item.anc, text: item.text, kids: item.kids || 0, scrollInfo: item.scroll || null,
+        scrollOnly: !!item.scrollOnly, native: !!item.native, isScope: !!item.isScope, alive: true, goneFlag: false });
       next.set(item.id, r);
     }
     f.remotes = next; // dropped proxies stay alive=false for anyone still holding them (current, lastMove)
@@ -531,15 +601,25 @@
       const d = e.data;
       if (!d || d.gpn !== PROTO || e.source !== window.parent) return;
       if (d.type === 'snapshot') {
+        topViewportArea = d.vpArea || null;
         byId = new Map();
         if (engineEl) byId.set(engineId, engineEl);
+        // Scopes whose element went away end here too (the top frame drops them when they stop being reported).
+        while (scopes.length && gone(scopes[scopes.length - 1])) scopes.pop();
         const list = candidates().filter((el) => inViewport(el.getBoundingClientRect()));
         const set = new Set(list);
+        const room = (el) => ({ up: canScroll(el, 'up'), down: canScroll(el, 'down'), left: canScroll(el, 'left'), right: canScroll(el, 'right') });
         const items = list.map((el) => {
           const anc = [];
           for (let n = el.parentElement; n; n = n.parentElement) if (set.has(n)) anc.push(idOf(n));
-          return { id: idOf(el), rect: plain(el.getBoundingClientRect()), anc, text: el.matches(TEXT_LIKE) };
+          return { id: idOf(el), rect: plain(el.getBoundingClientRect()), anc, text: el.matches(TEXT_LIKE),
+            kids: containerKids.get(el) || 0, scroll: scrollBoxes.has(el) ? room(el) : null, scrollOnly: scrollOnly.has(el),
+            native: el.matches(SELECTOR) };
         });
+        // The current scope is reported too, flagged, so the top frame keeps it alive (and can scroll it).
+        const sc = scopes[scopes.length - 1];
+        if (sc) items.push({ id: idOf(sc), rect: plain(sc.getBoundingClientRect()), anc: [], isScope: true,
+          scroll: scrollBoxes.has(sc) || isScrollBox(sc) ? room(sc) : null });
         send({ type: 'snapshot-reply', req: d.req, items, vw: innerWidth, vh: innerHeight, scroll: docScroll() });
       } else if (d.type === 'focus') {
         const el = byId.get(d.id);
@@ -559,10 +639,22 @@
         const handled = !!ae?.matches?.(TEXT_LIKE);
         if (handled) ae.blur();
         send({ type: 'back-reply', req: d.req, handled });
+      } else if (d.type === 'enter') {
+        const el = byId.get(d.id);
+        if (el) scopes.push(el);
+      } else if (d.type === 'leave') {
+        scopes.pop();
+      } else if (d.type === 'scrollBox') {
+        // Inside a scroll container in this frame, pressed past the last visible item.
+        const el = byId.get(d.id);
+        const horiz = d.dir === 'left' || d.dir === 'right', sign = d.dir === 'down' || d.dir === 'right' ? 1 : -1;
+        el?.scrollBy({ [horiz ? 'left' : 'top']: (horiz ? el.clientWidth : el.clientHeight) * 0.6 * sign, behavior: 'smooth' });
       } else if (d.type === 'scroll') {
-        scrollParent(engineEl, 'y').scrollBy(d.dx, d.dy);
+        // A focused scroll stop scrolls itself; otherwise whatever contains focus.
+        (engineEl && scrollBoxes.has(engineEl) ? engineEl : scrollParent(engineEl, 'y')).scrollBy(d.dx, d.dy);
       } else if (d.type === 'page') {
-        scrollParent(engineEl, 'y').scrollBy({ top: innerHeight * 0.85 * d.sign, behavior: 'smooth' });
+        const t = engineEl && scrollBoxes.has(engineEl) ? engineEl : scrollParent(engineEl, 'y');
+        t.scrollBy({ top: (t === document.scrollingElement ? innerHeight : t.clientHeight) * 0.85 * d.sign, behavior: 'smooth' });
       } else if (d.type === 'scrollStep') {
         // Pressed past the last visible item while the frame is the scope: scroll the document on.
         const horiz = d.dir === 'left' || d.dir === 'right', sign = d.dir === 'down' || d.dir === 'right' ? 1 : -1;
@@ -943,8 +1035,9 @@
     const scope = activeScope();
     if (!scope) { scrollStep(dir); return; }
     // (An entered frame isn't in scrollBoxes: its own elements replaced it in the candidates.)
-    if ((scrollBoxes.has(scope) || scope.tagName === 'IFRAME') && canScroll(scope, dir)) {
+    if ((scope instanceof RemoteEl || scrollBoxes.has(scope) || scope.tagName === 'IFRAME') && canScroll(scope, dir)) {
       scrolledAway = true;
+      if (scope instanceof RemoteEl) { postToFrame(scope.frame, { type: 'scrollBox', id: scope.id, dir }); return; }
       if (scope.tagName === 'IFRAME') { postToFrame(frameState(scope), { type: 'scrollStep', dir }); return; }
       const horiz = dir === 'left' || dir === 'right', sign = dir === 'down' || dir === 'right' ? 1 : -1;
       scope.scrollBy({ [horiz ? 'left' : 'top']: (horiz ? scope.clientWidth : scope.clientHeight) * 0.6 * sign, behavior: 'smooth' });
@@ -956,7 +1049,7 @@
     // The container itself continues off screen: scroll the page that holds it.
     scrolledAway = true;
     const horiz = dir === 'left' || dir === 'right', sign = dir === 'down' || dir === 'right' ? 1 : -1;
-    scrollParent(scope, horiz ? 'x' : 'y').scrollBy({ [horiz ? 'left' : 'top']: (horiz ? innerWidth : innerHeight) * 0.6 * sign, behavior: 'smooth' });
+    scrollParent(nodeOf(scope), horiz ? 'x' : 'y').scrollBy({ [horiz ? 'left' : 'top']: (horiz ? innerWidth : innerHeight) * 0.6 * sign, behavior: 'smooth' });
   }
 
   // dpad: one of the 4 D-pad directions (scored graph); otherwise a free stick angle.
@@ -1002,7 +1095,11 @@
   const TEXT_LIKE = 'textarea, [contenteditable=""], [contenteditable="true"], input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox]):not([type=radio]):not([type=image]):not([type=file]):not([type=color]):not([type=range])';
 
   function activate(el) {
-    if (el instanceof RemoteEl) { if (el.isConnected) postToFrame(el.frame, { type: 'activate', id: el.id }); return; }
+    if (el instanceof RemoteEl) {
+      if (enterOnA(el)) { enterScope(); return; } // a scroll container in a frame: enter it, don't click it
+      if (el.isConnected) postToFrame(el.frame, { type: 'activate', id: el.id });
+      return;
+    }
     if (!el || !usable(el)) return;
     if (enterOnA(el)) { enterScope(); return; }
     if (el.matches(TEXT_LIKE)) { el.focus(); return; }
@@ -1023,7 +1120,7 @@
     if (current instanceof RemoteEl && await askFrameBack(current.frame)) return;
     const ae = document.activeElement;
     if (ae && ae.matches?.(TEXT_LIKE)) { ae.blur(); return; }
-    if (activeScope() && leaveScope()) return;
+    if (activeScope() && await leaveScope()) return;
     const modal = activeModal();
     if (modal?.tagName === 'DIALOG') {
       // A script-dispatched Escape is untrusted, so browsers ignore it for <dialog>.
@@ -1084,8 +1181,9 @@
   function updateHint() {
     if (!hint) return;
     const parts = [];
-    if (current && enterOnA(current)) parts.push(`A/X enter (${containerKids.get(current)}) · right stick scrolls`);
-    else if (current && isContainer(current)) parts.push(`A open · X enter (${containerKids.get(current)})`);
+    if (current && enterOnA(current)) parts.push(`A/X enter (${kidsOf(current)}) · right stick scrolls`);
+    else if (current && isContainer(current)) parts.push(`A open · X enter (${kidsOf(current)})`);
+    else if (current && isScrollStop(current)) parts.push('right stick scrolls');
     if (activeScope()) parts.push('B leave');
     hint.textContent = parts.join(' · ');
     hint.style.display = parts.length && ring.style.display !== 'none' ? 'block' : 'none';
@@ -1396,7 +1494,7 @@
   if (IS_FRAME) { startClient(); return; }
 
   // Test pages can set window.__gpnDebug before loading this script to inspect state.
-  if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
+  if (window.__gpnDebug) window.__gpn = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
   addEventListener('scroll', scheduleViz, { passive: true, capture: true });
   addEventListener('resize', scheduleViz, { passive: true });
@@ -1518,7 +1616,7 @@
     if (pressed(BTN.VIEW)) {
       enabled = !enabled;
       if (!enabled) hideRing();
-      say(enabled ? 'Gamepad navigation ON' : 'Gamepad navigation OFF');
+      say(`Gamepad navigation ${enabled ? 'ON' : 'OFF'} · build ${BUILD}`);
     }
 
     if (enabled && !document.hidden) {

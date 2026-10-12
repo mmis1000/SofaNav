@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Gamepad Spatial Navigation",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Navigate any web page with a controller: D-pad moves focus between elements, A clicks, B goes back.",
   "background": {
     "service_worker": "background.js",

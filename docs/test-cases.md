@@ -69,6 +69,8 @@ section heading on that page.
 | 28a | Iframes | Focus the same-origin frame (not entered), right stick down → the frame's page scrolls | Guards E18 | right-stick branch in `tick`, `startClient` (`scroll`) |
 | 28b | Iframes | Enter the same-origin frame, ↓ to the text box, ↓ again → the frame scrolls, next ↓ reaches "Below the fold" | Guards E18: past the last visible item, an entered frame scrolls | `scrollWithin`, `canScroll` (IFRAME), `startClient` (`scrollStep`) |
 | 28c | Frame regressions | Enter the sparse frame (A), ↓ ×3 → the frame keeps scrolling through its blank stretch; the outer page doesn't move (automated) | Guards E19 | `scrollWithin`, `moveNow` (`!startOk` branch) |
+| 28e | Live chat frames | → from "Before chats": the plain chat's list is a stop ("right stick scrolls"); the right stick scrolls it; ↓ reaches the text box (automated) | Guards E22: scroll-only boxes, containers inside frames | `addScrollOnlyBoxes`, `isScrollStop`, `startClient` (`scroll`) |
+| 28f | Live chat frames | → to the ⋮ chat's list ("A/X enter (n) · right stick scrolls"); A enters; ↑ past the top visible message scrolls the list; B back on the list (automated) | Guards E22 | `enterScope`/`leaveScope` (RemoteEl), `scrollWithin` (`scrollBox`), `viewportArea` |
 | 28d | Frame regressions | Press "Swap that frame to a page without the script" → the frame becomes one plain element, no stale proxies (automated) | Guards E21 | `resetFrame`, `refreshFrames` (misses), `load` listener |
 
 ### Containers (cards)
@@ -265,6 +267,34 @@ check 10's documented behaviour never actually worked for native dialogs.
 `preventDefault`), falling back to a cancelable `cancel` event + `close()`;
 synthetic Escape is kept only for ARIA dialogs. *Where:* `back`. *Checks:* 10.
 
+**E22. YouTube live chat couldn't be scrolled as a unit (reported on real YouTube).**
+Live chat is an iframe whose document doesn't scroll; the message list inside it
+does. Three gaps: (1) containers weren't detected inside frames at all (frames
+reported a flat list); (2) once they were, the list still vanished: frames
+applied the "page-sized wrapper" rule (`BIG_CONTAINER`, > 50% of the viewport)
+against their *own* small viewport, and a chat list naturally fills its frame;
+(3) a list whose messages have nothing focusable never qualified, since scroll
+boxes only counted when they held candidates. *Fix:* the frame client runs the
+same container/scope logic and reports each item's container count, scroll room
+and whether it's natively clickable; the top frame enters/leaves frame
+containers by message (the frame keeps a mirrored scope stack) and scrolls them
+past their edge; frames judge "page-sized" against the top window's area (sent
+with each snapshot request); scrolling boxes with nothing focusable (at least
+120×60 px, found by a scan cached for 1 s) are scroll-only stops the right stick
+scrolls. I couldn't load real live chat in automated browsers (it renders empty
+there), so `test/chat-frame.html` reproduces its structure. *Where:*
+`candidatesNow`, `addScrollOnlyBoxes`, `isScrollStop`, `kidsOf`, `nodeOf`,
+`enterScope`, `leaveScope`, `leaveScopeTop`, `scrollWithin`, `viewportArea`,
+`applySnapshot`, `startClient` (`enter`, `leave`, `scrollBox`). *Checks:* 28e, 28f.
+
+**E23. Userscript updates were invisible.** Every build said `@version 0.2.0`, so
+userscript managers never offered the new code as an update, and there was no
+way to tell which build was running. *Fix:* the build stamps the userscript
+with a hash of `content.js` (`@build`, the description, a `[webpad] build …`
+console line and the View toast) and a monotonic `@version 0.3.0.<UTC
+timestamp>`, kept unchanged when the code hasn't changed. *Where:*
+`build-userscript.js`, `BUILD` in `content.js`.
+
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its
 old proxies stayed alive candidates (commands went to a document that no longer
@@ -300,8 +330,7 @@ still keeps the last data: slow frames are common). *Where:* `resetFrame`,
 
 ## Part 3 — Known limits
 
-- Frames: one level only; containers aren't detected inside frames (scrolling
-  frames themselves are containers, E18); the
+- Frames: one level only (frames inside frames aren't handled); the
   postMessage transport could be spoofed by a hostile embedding page (a hardened
   extension should use `runtime.getFrameId` plus extension messaging).
 - Typing into a cross-origin frame's text field may be refused by Chrome without
