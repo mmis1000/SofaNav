@@ -183,6 +183,21 @@
     `<div style="padding:6px 0;border-bottom:1px solid #333"><a href="#c${i + 1}">@commenter${i + 1}</a> comment ${i + 1}<br><button>Like ${i + 1}</button></div>`).join('');
 </script>
 
+<h2>Frame regressions (E19, E21)</h2>
+<div class="row" style="align-items:flex-start">
+  <!-- E19: entered, scrolled into its blank stretch, D-pad must keep scrolling the frame, never the page. -->
+  <iframe id="sparseFrame" title="sparse scrolling frame" src="sparse-frame.html" style="width:220px;height:220px;border:2px solid #555;border-radius:6px"></iframe>
+  <!-- E21: once swapped to a page without the script, this frame must become one plain element. -->
+  <iframe id="navFrame" title="frame that navigates" src="frame.html?label=nav&short" style="width:300px;height:150px;border:2px solid #555;border-radius:6px"></iframe>
+  <button id="swapFrame">Swap that frame to a page without the script</button>
+</div>
+<script>
+  document.getElementById('swapFrame').onclick = () => {
+    document.getElementById('navFrame').srcdoc =
+      "<body style='background:#332;color:#ddd;font:13px system-ui'>No script any more.<br><button>Without client</button></body>";
+  };
+</script>
+
 <h2>Orphan case — E is never the nearest target from anywhere (should be rescued, amber outline)</h2>
 <div style="position:relative;height:260px;margin:0 24px">
   <button style="position:absolute;left:0;top:0;width:60px">A</button>

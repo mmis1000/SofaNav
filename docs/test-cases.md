@@ -27,7 +27,7 @@ section heading on that page.
 | 7 | Long empty space | ↓ past the last item above it → page scrolls, no jump to the bottom buttons | Core: far targets are approached by scrolling so content in between is seen | `moveNow` ("far" check), `scrollStep` |
 | 8 | Horizontal scroller | Lands on the scroller as one stop; A/X enters; → along the items → the box scrolls sideways to follow | Core: focus inside overflow containers (the scroller is a scroll container since E17) | `setCurrent` (`scrollIntoView`), `addScrollBoxes` |
 | 9 | Form & dialog | A on the text input, then B → input focused, then left; no history back | Core: B's layered meaning (text field first) | `activate`, `back` |
-| 10 | Form & dialog | Open dialog, move, B → focus stays in the dialog; B closes it | Core: modal boundary | `activeModal`, `candidatesNow`, `back` |
+| 10 | Form & dialog | Open dialog, move, B → focus stays in the dialog; B closes it (automated: `npm run test:regress`) | Core: modal boundary; guards E20 (native `showModal()` dialog really closes) | `activeModal`, `candidatesNow`, `back` |
 | 11 | Iframes / any | Move focus, then ↓ at once while it is still scrolling → no reset to the page's top-left | Guards E1: our own smooth scroll must not count as "user scrolled away" | `scrolledAway`, `moveNow` (`startOk`) |
 | 12 | Horizontal scroller | Scroll the box so Item 1 pokes out left of Game 1 above; ← from Game 1 → nothing (dark gap / scroll), never Item 1 | Guards E7: elements beside/below must not count as "left" | `score` (overlap rule, `MAX_DEVIATION`) |
 
@@ -67,7 +67,9 @@ section heading on that page.
 | 27 | Iframes | A then B on each frame's text box → focus enters then leaves; no history back | Core: B inside frames asks the frame first | `back`, `askFrameBack` |
 | 28 | Iframes (second row) | → from "Left of flat frame" → F1 → F2 → F3 inside the non-scrolling frame → "Right of flat frame"; no hint, no scope, no X needed; whole-screen graph arrows cross its border | Core + E18: a frame that doesn't scroll is not a container, its elements belong to the page (flattened) | `candidatesNow` (frame loop), `startClient` (`docScroll`), `related`, `buildGraph` |
 | 28a | Iframes | Focus the same-origin frame (not entered), right stick down → the frame's page scrolls | Guards E18 | right-stick branch in `tick`, `startClient` (`scroll`) |
-| 28b | Iframes | Enter the same-origin frame, ↓ to the text box, ↓ again → the frame scrolls, next ↓ reaches "Below the fold" | Guards E18: past the last visible item, an entered frame scrolls | `moveNow` (edge), `canScroll` (IFRAME), `startClient` (`scrollStep`) |
+| 28b | Iframes | Enter the same-origin frame, ↓ to the text box, ↓ again → the frame scrolls, next ↓ reaches "Below the fold" | Guards E18: past the last visible item, an entered frame scrolls | `scrollWithin`, `canScroll` (IFRAME), `startClient` (`scrollStep`) |
+| 28c | Frame regressions | Enter the sparse frame (A), ↓ ×3 → the frame keeps scrolling through its blank stretch; the outer page doesn't move (automated) | Guards E19 | `scrollWithin`, `moveNow` (`!startOk` branch) |
+| 28d | Frame regressions | Press "Swap that frame to a page without the script" → the frame becomes one plain element, no stale proxies (automated) | Guards E21 | `resetFrame`, `refreshFrames` (misses), `load` listener |
 
 ### Containers (cards)
 
@@ -90,6 +92,10 @@ section heading on that page.
 |---|---|---|---|---|
 | 39 | test/stress.html | In the console, time `__gpn.candidates()` and `__gpn.buildGraph(list)` → only ~100 near-screen elements processed; tens of ms | Guards E15: cost must not grow with page size | `nearViewport`, `candidatesNow`, `shadowHosts`, `buildGraph` (plain rects) |
 | 40 | Twitter / long feeds | Graph view on, scroll → no sustained lag | Guards E15 on the real site it was reported on | as above, plus `findNext`/`castRay` (score before `related`), `updateHud` (change check) |
+
+Checks marked *automated* run with `npm run test:regress` (Playwright; test server
+must be running). `CONTENT_JS=path` runs them against another copy of the script,
+e.g. an old commit, to prove a check catches its bug.
 
 ## Part 2 — Edge cases and bugs found (in order)
 
@@ -236,6 +242,37 @@ elements replace it), so the edge check also accepts an `IFRAME` scope.
 *Where:* `candidatesNow` (frame loop), `applySnapshot` (`scroll`), `startClient`
 (`docScroll`, `scrollStep`), `canScroll`, `moveNow` (edge), `pageScroll`,
 right-stick branch in `tick`. *Checks:* 25, 28, 28a, 28b.
+
+E19–E21 were found by an external review (Codex) of commit 4bc57f8 and
+reproduced with Playwright before fixing; `scripts/regressions.js` fails all
+three on that commit and passes after the fix.
+
+**E19. D-pad escaped an entered scrolling frame through a blank stretch.**
+Frame 220px tall: First button, 1500px of nothing, Last button. After entering
+and one ↓ (frame scrolls 132px), the frame's viewport held no items; the next ↓
+found nothing to re-enter on and called `scrollStep`, whose `scrollParent` of a
+frame proxy is the outer document, so the page scrolled while the scope stayed
+the frame. *Fix:* one scope-aware helper for "nothing to move to": scroll the
+scope if it continues that way (scroll box or entered frame), else scroll the
+page only if the scope itself runs off screen, else bump; used both when no
+target is found and when re-entry finds nothing. *Where:* `scrollWithin`,
+`moveNow`. *Checks:* 28c.
+
+**E20. B didn't close native `<dialog>` modals.** `back()` dispatched a synthetic
+Escape, which browsers ignore for `showModal()` dialogs (untrusted event), so
+check 10's documented behaviour never actually worked for native dialogs.
+*Fix:* for `<dialog>`, call `requestClose()` (fires `cancel`, respects
+`preventDefault`), falling back to a cancelable `cancel` event + `close()`;
+synthetic Escape is kept only for ARIA dialogs. *Where:* `back`. *Checks:* 10.
+
+**E21. A frame kept its client forever.** `answered` was never reset, so after the
+iframe navigated to a page without the script, it kept `hasClient = true` and its
+old proxies stayed alive candidates (commands went to a document that no longer
+listened). *Fix:* reset a frame's state on its `load` event (captured, since it
+doesn't bubble), marking old proxies dead so held focus recovers; as a backstop,
+two consecutive unanswered snapshots (`FRAME_MISSES`) reset it too (one miss
+still keeps the last data: slow frames are common). *Where:* `resetFrame`,
+`refreshFrames`, `applySnapshot`. *Checks:* 28d.
 
 ### Test-harness pitfalls (not product bugs, but they cost time)
 

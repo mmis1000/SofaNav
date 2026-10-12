@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Sparse frame</title>
+<style>
+  body { margin: 8px; background: #2a2433; color: #ddd; font: 13px system-ui, sans-serif; }
+  button { background: #4a3a57; color: #fff; border: 0; border-radius: 4px; padding: 8px; font: inherit; }
+</style>
+</head>
+<body>
+<!-- A scrolling frame with a long blank stretch: after one scroll step nothing is visible. -->
+<button>First</button>
+<div style="height:1500px"></div>
+<button>Last</button>
+<script>
+  // Forward keys to the test page's keyboard stand-in (see frame.html).
+  for (const type of ['keydown', 'keyup']) addEventListener(type, (e) => {
+    parent.postMessage({ test: 'key', type, code: e.code, altKey: e.altKey, ctrlKey: e.ctrlKey }, '*');
+    if (/^(Arrow|Page|Space)/.test(e.code)) e.preventDefault();
+  }, true);
+</script>
+<script src="/extension/content.js"></script>
+</body>
+</html>

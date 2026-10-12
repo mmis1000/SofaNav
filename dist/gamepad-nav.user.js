@@ -432,12 +432,35 @@
       for (const iframe of list) postToFrame(frameState(iframe), { type: 'snapshot', req });
     }).then(() => {
       // A frame that has never answered has no client (sandboxed, blocked...): it stays one plain element.
-      for (const iframe of list) { const f = frameState(iframe); if (!f.answered) f.hasClient = false; }
+      // One that stops answering (client gone without a load event) becomes one after FRAME_MISSES rounds;
+      // a single miss keeps the last data, since slow frames are common.
+      for (const iframe of list) {
+        const f = frameState(iframe);
+        if (answered.has(f)) continue;
+        if (!f.answered) f.hasClient = false;
+        else if (++f.misses >= FRAME_MISSES) resetFrame(f);
+      }
     });
   }
 
+  // The frame's document changed (it navigated, or its srcdoc was replaced): what
+  // we knew about the old document no longer applies. Old proxies are marked dead
+  // so anything still holding one (focus, lastMove) recovers through gone().
+  function resetFrame(f) {
+    if (!f) return;
+    for (const r of f.remotes.values()) r.alive = false;
+    f.remotes = new Map();
+    f.answered = f.hasClient = false;
+    f.scroll = undefined;
+    f.misses = 0;
+  }
+  // iframe load events don't bubble, but they can be caught on the way down.
+  if (!IS_FRAME) document.addEventListener('load', (e) => { if (e.target?.tagName === 'IFRAME') resetFrame(frames.get(e.target)); }, true);
+  const FRAME_MISSES = 2; // consecutive unanswered snapshots after which a frame counts as client-less
+
   function applySnapshot(f, d) {
     f.hasClient = f.answered = true;
+    f.misses = 0;
     f.scroll = d.scroll;
     f.vw = d.vw || 1; f.vh = d.vh || 1;
     for (const r of f.remotes.values()) r.alive = false;
@@ -923,6 +946,31 @@
     return nearestTo(pos, local.length ? local : visible);
   }
 
+  // Nothing to move to in this direction. Inside a scope nothing else exists: scroll
+  // the scope itself if it continues that way (a scroll box or an entered frame),
+  // the page if the scope extends off screen, otherwise bump. Outside a scope,
+  // scroll whatever contains focus. Never fall through to the page from inside a
+  // scope: scrollStep() resolves a frame element's scroll parent to the outer page.
+  function scrollWithin(dir) {
+    const scope = activeScope();
+    if (!scope) { scrollStep(dir); return; }
+    // (An entered frame isn't in scrollBoxes: its own elements replaced it in the candidates.)
+    if ((scrollBoxes.has(scope) || scope.tagName === 'IFRAME') && canScroll(scope, dir)) {
+      scrolledAway = true;
+      if (scope.tagName === 'IFRAME') { postToFrame(frameState(scope), { type: 'scrollStep', dir }); return; }
+      const horiz = dir === 'left' || dir === 'right', sign = dir === 'down' || dir === 'right' ? 1 : -1;
+      scope.scrollBy({ [horiz ? 'left' : 'top']: (horiz ? scope.clientWidth : scope.clientHeight) * 0.6 * sign, behavior: 'smooth' });
+      return;
+    }
+    const c = scope.getBoundingClientRect();
+    const more = { down: c.bottom > innerHeight, up: c.top < 0, right: c.right > innerWidth, left: c.left < 0 }[dir];
+    if (!more) { bump(dir); return; }
+    // The container itself continues off screen: scroll the page that holds it.
+    scrolledAway = true;
+    const horiz = dir === 'left' || dir === 'right', sign = dir === 'down' || dir === 'right' ? 1 : -1;
+    scrollParent(scope, horiz ? 'x' : 'y').scrollBy({ [horiz ? 'left' : 'top']: (horiz ? innerWidth : innerHeight) * 0.6 * sign, behavior: 'smooth' });
+  }
+
   // dpad: one of the 4 D-pad directions (scored graph); otherwise a free stick angle.
   // Asks iframes for their elements first (usually a few ms), then moves.
   let moving = false;
@@ -941,7 +989,8 @@
     const startOk = current && usable(current) && (!scrolledAway || inViewport(current.getBoundingClientRect()));
     if (!startOk) {
       const entry = (current && reentryPoint(current, list)) || entryPoint(dir, list);
-      if (entry) setCurrent(entry); else scrollStep(dir);
+      // Nothing visible to land on (e.g. a blank stretch of a scrolled frame): keep scrolling, within the scope.
+      if (entry) setCurrent(entry); else scrollWithin(dir);
       lastMove = null;
       return;
     }
@@ -949,26 +998,7 @@
     const to = dpad
       ? resolveCardinal(dir, current, list, graph)?.to
       : angleTable(current, graph)[tableIndex(angle)];
-    if (!to) {
-      // Inside a scope nothing else exists: scroll only if the container itself continues that way.
-      const scope = activeScope();
-      // (An entered frame isn't in scrollBoxes: its own elements replaced it in the candidates.)
-      if (scope && (scrollBoxes.has(scope) || scope.tagName === 'IFRAME') && canScroll(scope, dir)) {
-        // Inside a scroll box: more content that way, so scroll the box rather than the page.
-        scrolledAway = true;
-        if (scope.tagName === 'IFRAME') { postToFrame(frameState(scope), { type: 'scrollStep', dir }); return; }
-        const horiz = dir === 'left' || dir === 'right', sign = dir === 'down' || dir === 'right' ? 1 : -1;
-        scope.scrollBy({ [horiz ? 'left' : 'top']: (horiz ? scope.clientWidth : scope.clientHeight) * 0.6 * sign, behavior: 'smooth' });
-        return;
-      }
-      if (scope) {
-        const c = scope.getBoundingClientRect();
-        const more = { down: c.bottom > innerHeight, up: c.top < 0, right: c.right > innerWidth, left: c.left < 0 }[dir];
-        if (!more) { bump(dir); return; }
-      }
-      scrollStep(dir);
-      return;
-    }
+    if (!to) { scrollWithin(dir); return; }
     if (dpad && !isReturn(angle, current)) {
       // Target far off screen: scroll toward it first so content in between can be read.
       const r = to.getBoundingClientRect();
@@ -1006,7 +1036,16 @@
     const ae = document.activeElement;
     if (ae && ae.matches?.(TEXT_LIKE)) { ae.blur(); return; }
     if (activeScope() && leaveScope()) return;
-    if (activeModal()) {
+    const modal = activeModal();
+    if (modal?.tagName === 'DIALOG') {
+      // A script-dispatched Escape is untrusted, so browsers ignore it for <dialog>.
+      // requestClose() is the real close request (fires cancel, honours preventDefault).
+      if (typeof modal.requestClose === 'function') modal.requestClose();
+      else if (modal.dispatchEvent(new Event('cancel', { cancelable: true }))) modal.close();
+      return;
+    }
+    if (modal) {
+      // ARIA dialogs: their own code listens for Escape.
       const target = ae || document.body;
       for (const type of ['keydown', 'keyup']) {
         target.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));

@@ -82,6 +82,8 @@ repeat timing, scoring, wedge sizes); each has a comment.
 npm run serve
 ```
 
+Automated regression checks (Playwright, server running): `npm run test:regress`.
+
 Then open http://localhost:8765/test/ (the cross-origin frame loads from
 127.0.0.1, so use `localhost` in the address). See [docs/test-cases.md](docs/test-cases.md).
 

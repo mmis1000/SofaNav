@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build-userscript.js",
     "serve": "python -m http.server 8765",
-    "demo": "node scripts/record-demo.js"
+    "demo": "node scripts/record-demo.js",
+    "test:regress": "node scripts/regressions.js"
   },
   "devDependencies": {
     "playwright": "^1.64.0"
