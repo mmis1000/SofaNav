@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/mmis1000/SofaNav/actions/workflows/ci.yml/badge.svg)](https://github.com/mmis1000/SofaNav/actions/workflows/ci.yml)
 
-**Website, live demo and one-click install: https://mmis1000.github.io/SofaNav/**
+**Website, live demo and one-click install: https://mmis1000.me/SofaNav/**
 
 Console-style controller navigation for any web page. The D-pad and left stick
 move a focus ring between links and buttons by their position on screen (like
@@ -40,7 +40,7 @@ docs/
 - **Extension**: `chrome://extensions` (or `edge://extensions`) → Developer mode →
   Load unpacked → pick `extension/`. Firefox: `about:debugging` → Load Temporary
   Add-on → `extension/manifest.json`.
-- **Userscript**: install from the website (https://mmis1000.github.io/SofaNav/sofanav.user.js;
+- **Userscript**: install from the website (https://mmis1000.me/SofaNav/sofanav.user.js;
   Tampermonkey/Violentmonkey pick it up and keep it updated), or build it yourself:
   `npm run build`, then install `dist/sofanav.user.js`. LB/RB do nothing there.
   Each build is stamped with a hash of `content.js` (shown in the
@@ -137,7 +137,7 @@ writes `demo/sofanav-demo.webm` plus an `.mp4` if ffmpeg is installed.
 
 ## Website and CI
 
-`site/index.html` is the landing page at https://mmis1000.github.io/SofaNav/. It
+`site/index.html` is the landing page at https://mmis1000.me/SofaNav/. It
 runs the built script itself, so visitors can try SofaNav with a controller (or
 an opt-in keyboard mode). `npm run build && npm run site` assembles `_site/`:
 the page, `sofanav.user.js` (install/update URL), `sofanav-extension.zip`,

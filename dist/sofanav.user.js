@@ -3,9 +3,9 @@
 // @namespace    https://sofanav.mmis1000.me
 // @version      0.3.0.202610121548
 // @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build e657bb3b46a5)
-// @homepageURL  https://mmis1000.github.io/SofaNav/
-// @downloadURL  https://mmis1000.github.io/SofaNav/sofanav.user.js
-// @updateURL    https://mmis1000.github.io/SofaNav/sofanav.user.js
+// @homepageURL  https://mmis1000.me/SofaNav/
+// @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
+// @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none

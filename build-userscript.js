@@ -38,9 +38,9 @@ const header = `// ==UserScript==
 // @namespace    https://sofanav.mmis1000.me
 // @version      ${version}.${stamp}
 // @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build ${hash})
-// @homepageURL  https://mmis1000.github.io/SofaNav/
-// @downloadURL  https://mmis1000.github.io/SofaNav/sofanav.user.js
-// @updateURL    https://mmis1000.github.io/SofaNav/sofanav.user.js
+// @homepageURL  https://mmis1000.me/SofaNav/
+// @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
+// @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
