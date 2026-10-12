@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         SofaNav
 // @namespace    https://sofanav.mmis1000.me
-// @version      0.3.0.202610121644
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build f1792a5bc555)
+// @version      0.3.0.202610121706
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 230694036146)
 // @homepageURL  https://mmis1000.me/SofaNav/
 // @downloadURL  https://mmis1000.me/SofaNav/sofanav.user.js
 // @updateURL    https://mmis1000.me/SofaNav/sofanav.user.js
@@ -16,7 +16,7 @@
 // @inject-into  content
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build f1792a5bc555 = first 12 hex digits of sha256(extension/content.js).
+// Build 230694036146 = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 // @sandbox DOM / @inject-into content run SofaNav in an isolated world, where the page can't
 // reach it. Only then does it control cross-origin frames (over GM storage, see content.js
@@ -34,7 +34,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = 'f1792a5bc555';
+  const BUILD = '230694036146';
   const USERSCRIPT = true; // the userscript build sets this
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
@@ -121,6 +121,48 @@
   function activeModal() {
     const modals = [...document.querySelectorAll('dialog[open], [aria-modal="true"]')];
     return modals.reverse().find((m) => m.getBoundingClientRect().width > 0) || null;
+  }
+
+  // An open popup that isn't a modal dialog: a menu or listbox floating over the page (X's
+  // account menu, a dropdown), an open popover, or what an expanded menu button opened. B
+  // closes it before going back. Menus that are part of the page layout don't float, so they
+  // don't count. Returns { el, trigger } or null.
+  function activePopup() {
+    const shown = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility !== 'hidden';
+    };
+    const floats = (el) => {
+      if (getComputedStyle(el).position === 'absolute') return true;
+      for (let n = el; n && n !== document.body; n = n.parentElement) if (getComputedStyle(n).position === 'fixed') return true;
+      return false;
+    };
+    const found = [];
+    for (const el of document.querySelectorAll('[role="menu"], [role="listbox"], [role="dialog"]:not([aria-modal="true"]), [popover]')) {
+      if (el.tagName === 'DIALOG' || !shown(el)) continue;
+      if (el.matches('[popover]') ? el.matches(':popover-open') : floats(el)) found.push({ el, trigger: null });
+    }
+    for (const t of document.querySelectorAll('[aria-expanded="true"][aria-haspopup]:not([aria-haspopup="false"])')) {
+      const el = document.getElementById(t.getAttribute('aria-controls') || '');
+      const hit = found.find((p) => el && (p.el === el || el.contains(p.el)));
+      if (hit) hit.trigger = t;
+      else if (el && shown(el)) found.push({ el, trigger: t });
+    }
+    return found.pop() || null; // later in the document = on top, usually
+  }
+
+  async function closePopup(popup) {
+    const { el, trigger } = popup;
+    // Escape, sent from inside the popup so its own key handler sees it.
+    const inside = [nodeOf(current), document.activeElement].find((n) => n instanceof Element && el.contains(n)) || el;
+    for (const type of ['keydown', 'keyup']) {
+      inside.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true, composed: true }));
+    }
+    await new Promise((r) => setTimeout(r, 200));
+    if (activePopup()?.el !== el) return;
+    // Still open (scripted Escape is ignored by native popovers and some sites).
+    if (el.matches(':popover-open')) { try { el.hidePopover(); } catch {} return; }
+    if (trigger?.isConnected) activate(trigger); // menu buttons toggle
   }
 
   function usable(el) {
@@ -1338,6 +1380,8 @@
     if (ae && ae.matches?.(TEXT_LIKE)) { ae.blur(); return; }
     if (activeScope() && await leaveScope()) return;
     const modal = activeModal();
+    const popup = activePopup();
+    if (popup && (!modal || modal.contains(popup.el))) { await closePopup(popup); return; }
     if (modal?.tagName === 'DIALOG') {
       // A script-dispatched Escape is untrusted, so browsers ignore it for <dialog>.
       // requestClose() is the real close request (fires cancel, honours preventDefault).

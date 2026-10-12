@@ -415,6 +415,21 @@ removed → safe fallback (no cross-origin frames). Tampermonkey is not
 automated (closed source, store-only); check it by hand with
 `/test/attack/attacker.html` and `/test/?ext`.
 
+**E31. B couldn't close X's account menu; it went back a page instead.** B
+closed native `<dialog>`s and `aria-modal` dialogs only. X's account menu (and
+most dropdowns) is a floating `role="menu"` in a full-screen layer, neither of
+those, so B fell through to `history.back()` and the menu stayed open. *Fix:*
+`activePopup` finds an open popup that isn't a modal: a `menu`, `listbox` or
+non-modal `dialog` that floats (absolutely positioned, or inside something
+fixed; menus that are part of the layout don't count), an open `popover`, or
+what an expanded `aria-haspopup` button controls. B closes it first: Escape is
+sent from inside the popup (X handles it on the menu, not the document); if it
+is still open after 200 ms, `hidePopover()` for popovers (they ignore a scripted
+Escape) or the menu button is pressed again. *Where:* `activePopup`,
+`closePopup`, `back`. *Checks:* automated (`test:regress`, an X-style menu and a
+native popover on the test page's "Popup menus" section); fails on 36b24f8 ("B
+went back a page").
+
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its
 old proxies stayed alive candidates (commands went to a document that no longer

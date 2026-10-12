@@ -275,6 +275,24 @@
   <div class="row"><button id="ok">OK</button><button id="cancel">Cancel</button></div>
 </dialog>
 
+<h2>Popup menus (E31) — B closes an open menu instead of going back</h2>
+<div class="row">
+  <button type="button" id="menuBtn" aria-haspopup="menu" aria-expanded="false">Account ⋯ (X-style menu)</button>
+  <button type="button" id="popBtn" popovertarget="pop">Popover menu</button>
+</div>
+<!-- Like X's account menu: a full-screen layer with a click-to-close mask; Escape is handled on the menu itself. -->
+<div id="menuLayer" hidden style="position:fixed;inset:0;z-index:50">
+  <div id="menuMask" style="position:absolute;inset:0"></div>
+  <div role="menu" id="menu" style="position:absolute;left:40px;bottom:80px;background:#2a2a2a;border:1px solid #555;border-radius:8px;padding:8px">
+    <div><button role="menuitem">Add an existing account</button></div>
+    <div><button role="menuitem">Log out</button></div>
+  </div>
+</div>
+<!-- Native popover: ignores a scripted Escape, so SofaNav must use hidePopover(). -->
+<div popover id="pop" role="menu" style="background:#2a2a2a;color:#ddd;border:1px solid #555;border-radius:8px;padding:8px">
+  <button>Popover item 1</button> <button>Popover item 2</button>
+</div>
+
 <div class="tall">long empty space — moving down should scroll here</div>
 <div class="row" style="padding-bottom:48px"><button>Bottom button</button><button>Another</button></div>
 
@@ -289,6 +307,11 @@
     if (el?.role === 'tab') document.querySelectorAll('[role=tab]').forEach((t) => t.setAttribute('aria-selected', t === el));
   });
   document.getElementById('openDialog').onclick = () => document.getElementById('dlg').showModal();
+  const menuBtn = document.getElementById('menuBtn'), menuLayer = document.getElementById('menuLayer');
+  const setMenu = (open) => { menuLayer.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); };
+  menuBtn.onclick = () => setMenu(menuLayer.hidden);
+  document.getElementById('menuMask').onclick = () => setMenu(false);
+  document.getElementById('menu').addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
   document.getElementById('ok').onclick = document.getElementById('cancel').onclick = () => document.getElementById('dlg').close();
 
   // Keyboard fallback: a virtual standard-mapping pad appended to the real ones.

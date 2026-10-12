@@ -65,6 +65,28 @@ const checks = {
     return { ok: !open, detail: `dialog.open=${open}` };
   },
 
+  // E31: B must close a floating menu (X's account menu) or a popover, not go back a page.
+  async 'E31 B closes an open popup menu instead of going back'(page) {
+    const { press, wait } = helpers(page);
+    await press('ArrowUp');
+    await page.evaluate(() => { location.hash = 'before-menu'; });
+    await page.evaluate(() => { document.getElementById('menuBtn').scrollIntoView({ block: 'center' }); document.getElementById('menuBtn').click(); });
+    await wait(300);
+    await page.evaluate(() => __sofanav.focus(document.querySelector('#menu [role=menuitem]')));
+    await wait(300);
+    await press('Backspace', 700);
+    const menu = await page.evaluate(() => ({ open: !document.getElementById('menuLayer').hidden, hash: location.hash }));
+    if (menu.hash !== '#before-menu') return { ok: false, detail: `B went back a page (X-style menu open=${menu.open})` };
+    await page.evaluate(() => { document.getElementById('popBtn').click(); });
+    await wait(300);
+    await page.evaluate(() => __sofanav.focus(document.querySelector('#pop button')));
+    await wait(300);
+    await press('Backspace', 700);
+    const pop = await page.evaluate(() => ({ open: !!document.getElementById('pop')?.matches(':popover-open'), hash: location.hash }));
+    const ok = !menu.open && !pop.open && pop.hash === '#before-menu';
+    return { ok, detail: `X-style menu open=${menu.open}, popover open=${pop.open}, page ${pop.hash === '#before-menu' ? 'stayed' : 'went back'}` };
+  },
+
   // E21: a frame that navigates to a page without the script must become one plain element.
   async 'E21 frame that loses its client becomes a plain element'(page) {
     const { press, wait } = helpers(page);
