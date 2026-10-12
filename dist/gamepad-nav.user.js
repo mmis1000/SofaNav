@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
-// @version      0.3.0.202610121452
-// @build        d6c24fbc89ea
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build d6c24fbc89ea)
+// @version      0.3.0.202610121459
+// @build        d3345c23dabc
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build d3345c23dabc)
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build d6c24fbc89ea = first 12 hex digits of sha256(extension/content.js).
+// Build d3345c23dabc = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // Gamepad spatial navigation: D-pad / left stick moves a focus ring between
@@ -21,7 +21,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = 'd6c24fbc89ea';
+  const BUILD = 'd3345c23dabc';
   if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -938,6 +938,8 @@
   function setCurrent(el) {
     if (current instanceof RemoteEl && current !== el) postToFrame(current.frame, { type: 'release' });
     current = el;
+    focusRect = el.getBoundingClientRect();
+    focusArea = focusRect.width * focusRect.height;
     scrolledAway = false;
     try { el.focus({ preventScroll: true }); } catch {}
     el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
@@ -954,6 +956,45 @@
   let lastRect = null; // viewport rect of `current` the last time it was visible
   let lastGoneCheck = 0;
   const GONE_CHECK_MS = 100;
+
+  // SPA page changes (Twitter): when focus vanishes mid-change, the next page is
+  // still loading, and recovering at once can pick a placeholder (an empty
+  // focusable timeline that later grows into a page-sized wrapper). So recovery
+  // waits until the DOM has been quiet for SETTLE_MS (at most SETTLE_MAX_MS).
+  const SETTLE_MS = 300, SETTLE_MAX_MS = 1500;
+  let lastMutationAt = -Infinity, goneSince = null;
+  new MutationObserver(() => { lastMutationAt = performance.now(); })
+    .observe(document.documentElement, { childList: true, subtree: true });
+
+  function settling(now) {
+    if (!current || !gone(current)) { goneSince = null; return false; }
+    goneSince ??= now;
+    return now - lastMutationAt < SETTLE_MS && now - goneSince < SETTLE_MAX_MS;
+  }
+
+  // The focused element changed size a lot since it got focus (a placeholder filled
+  // up): check it is still a stop, and if not, re-anchor without waiting for a press.
+  const RESIZE_RECHECK = 3; // area ratio that triggers the check
+  let focusArea = 0, focusRect = null; // size/position of the focused element when it got focus
+  function revalidateCurrent() {
+    if (!current || current instanceof RemoteEl || !current.isConnected) return;
+    const r = current.getBoundingClientRect();
+    const area = r.width * r.height;
+    const ratio = focusArea > 0 && area > 0 ? Math.max(area / focusArea, focusArea / area) : 1;
+    if (ratio < RESIZE_RECHECK) return;
+    focusArea = area; // check once per big change
+    const list = candidates();
+    if (list.includes(current)) return;
+    // Measured from where it was when focused (a grown timeline's middle is meaningless);
+    // adjusted for page scrolling since then by keeping its current top-left.
+    const pos = { left: r.left, top: r.top, right: r.left + focusRect.width, bottom: r.top + focusRect.height };
+    const next = reentryPoint(current, list, pos);
+    if (!next) return;
+    const ringWasVisible = ring?.style.display === 'block';
+    lastMove = null;
+    setCurrent(next);
+    if (!ringWasVisible) hideRing();
+  }
 
   function rememberRect() {
     if (!current?.isConnected) return;
@@ -1032,8 +1073,7 @@
     return r.width >= 2 && r.height >= 2 ? r : null;
   }
 
-  function reentryPoint(from, list) {
-    const pos = actualRect(from) || lastRect;
+  function reentryPoint(from, list, pos = actualRect(from) || lastRect) {
     if (!pos) return null;
     const visible = list.filter((el) => el !== from && inViewport(el.getBoundingClientRect()));
     const local = visible.filter((el) => sameScrollArea(el, from));
@@ -1702,7 +1742,11 @@
     }
 
     prevButtons = buttons;
-    if (now - lastGoneCheck >= GONE_CHECK_MS) { lastGoneCheck = now; checkScopes(); recoverFocus(); }
+    if (now - lastGoneCheck >= GONE_CHECK_MS) {
+      lastGoneCheck = now;
+      checkScopes();
+      if (!settling(now)) { recoverFocus(); revalidateCurrent(); }
+    }
     rememberRect();
     updateRing();
     updateHud(axes);

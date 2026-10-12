@@ -85,6 +85,7 @@ section heading on that page.
 | 34 | Containers | Enter card 3, remove it in devtools → scope ends, focus recovers nearby | Guards E16 + E12: recycled feed items (Twitter) | `checkScopes`, `recoverFocus` |
 | 35a | Containers | Put focus on the `.feed` wrapper (debug hook, simulating a desync), ↓ → lands on a card, not past the whole feed (automated) | Guards E24 | `moveNow` (`startOk` requires a current stop) |
 | 35b | Scroll box | With a window shorter than the comments panel, focus the panel → the hint "A/X enter (n) · right stick scrolls" is fully on screen (automated) | Guards E25 | `updateRing` (hint placement) |
+| 35c | SPA page change | Focus "Back (navigates)", A → the page swaps to an empty focusable timeline that fills with posts 700 ms later → focus ends on the first post, not the timeline (automated) | Guards E26 | `settling`, `revalidateCurrent`, `reentryPoint` |
 | 35 | Containers | "Only child" wrapper → the button is a normal target | Guards E16: single-item wrappers aren't containers | `layer` (ignored set) |
 | 36 | Scroll box | → from "Before panel" → the comments panel is one stop, hint "A/X enter (n) · right stick scrolls" | Guards E17: scrollable areas are containers even when not focusable | `addScrollBoxes`, `isScrollBox`, `updateHint` |
 | 37 | Scroll box | With the panel focused (not entered), right stick down → the panel scrolls, focus stays on it | Guards E17: scroll a panel directly | `scrollTarget` |
@@ -320,6 +321,21 @@ neither fits and it ended up above the top edge. It wasn't clamped horizontally
 either. *Fix:* if it fits neither below nor above, it sits inside the element
 along its visible bottom edge; it's always clamped to the screen. *Where:*
 `updateRing`. *Checks:* 35b.
+
+**E26. After an SPA page change focus stayed on the next page's loading
+placeholder (Twitter, confirmed with the Menu debug report).** Pressing A on a
+post's back button (`app-bar-back`) went to /home; focus then sat on
+`div[tabindex=0][aria-label=首頁時間軸]`, 598×12248 px, `currentIsStop: false`.
+The back button vanished, recovery ran within 100 ms and picked the nearest
+stop: the new timeline while it was still empty (small, focusable, a stop).
+Posts then loaded, it grew past half the screen into a page-sized wrapper (not
+a stop) and focus stayed. (Not React reusing a node: a different element.)
+*Fix:* recovery waits until the DOM has been quiet for 300 ms (at most 1.5 s)
+when focus vanished mid-change; and when the focused element's area changes
+more than 3× it is re-checked, and if it is no longer a stop focus re-anchors
+right away, measured from where the element was when it got focus (a grown
+timeline's middle is meaningless). *Where:* `settling`, `revalidateCurrent`,
+`setCurrent` (`focusRect`), `reentryPoint` (`pos`). *Checks:* 35c.
 
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its

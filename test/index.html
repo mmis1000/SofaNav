@@ -206,6 +206,23 @@
   <button>After chats</button>
 </div>
 
+<h2>SPA page change (E26) — Back swaps the page; the new timeline loads in after a moment</h2>
+<div id="spa" style="margin:0 24px">
+  <button id="spaBack">Back (navigates)</button>
+</div>
+<script>
+  // Like Twitter's post → home: the back button disappears, an empty focusable timeline
+  // shows up, and fills with posts a little later (growing far beyond the screen).
+  document.getElementById('spaBack').onclick = () => {
+    const spa = document.getElementById('spa');
+    spa.innerHTML = '<div id="spaTimeline" tabindex="0" aria-label="home timeline" style="min-height:40px;border:1px dashed #555">Loading…</div>';
+    setTimeout(() => {
+      document.getElementById('spaTimeline').innerHTML = Array.from({ length: 60 }, (_, i) =>
+        `<div style="height:60px;border-bottom:1px solid #333;padding:8px"><a href="#post${i + 1}">post ${i + 1}</a> <button>Like ${i + 1}</button></div>`).join('');
+    }, 700);
+  };
+</script>
+
 <h2>Orphan case — E is never the nearest target from anywhere (should be rescued, amber outline)</h2>
 <div style="position:relative;height:260px;margin:0 24px">
   <button style="position:absolute;left:0;top:0;width:60px">A</button>

@@ -179,6 +179,29 @@ const checks = {
     const inside = r.rect[0] >= 0 && r.rect[1] >= 0 && r.rect[2] <= r.vw && r.rect[3] <= r.vh;
     return { ok: r.shown && inside, detail: `hint "${r.text}" at ${r.rect} in ${r.vw}x${r.vh}` };
   },
+
+  // E26: after an SPA page change, focus must not stay on the new page's loading placeholder
+  // (an empty focusable timeline that later grows into a page-sized wrapper).
+  async 'E26 SPA page change does not leave focus on a loading placeholder'(page) {
+    const { press, wait } = helpers(page);
+    await press('ArrowUp');
+    await page.evaluate(async () => {
+      const b = document.getElementById('spaBack');
+      b.scrollIntoView({ block: 'start' });
+      await new Promise((r) => setTimeout(r, 300));
+      __gpn.candidates();
+      __gpn.focus(b);
+    });
+    await wait(300);
+    await press('Enter', 100); // A on "Back": the page "navigates"
+    await wait(2500); // timeline fills in after 700 ms
+    const r = await page.evaluate(() => {
+      const c = __gpn.current();
+      return { tag: c?.tagName, id: c?.id || '', text: (c?.textContent || '').trim().slice(0, 16), isStop: __gpn.candidates().includes(c) };
+    });
+    const onPlaceholder = r.id === 'spaTimeline';
+    return { ok: !onPlaceholder && r.isStop, detail: `focus: ${r.tag}${r.id ? '#' + r.id : ''} "${r.text}" stop=${r.isStop}` };
+  },
 };
 
 (async () => {
