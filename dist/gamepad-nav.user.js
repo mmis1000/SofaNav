@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
-// @version      0.3.0.202610121334
-// @build        44e681daf5cc
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 44e681daf5cc)
+// @version      0.3.0.202610121336
+// @build        2a82dbe326cb
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 2a82dbe326cb)
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 44e681daf5cc = first 12 hex digits of sha256(extension/content.js).
+// Build 2a82dbe326cb = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // Gamepad spatial navigation: D-pad / left stick moves a focus ring between
@@ -21,7 +21,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '44e681daf5cc';
+  const BUILD = '2a82dbe326cb';
   if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.

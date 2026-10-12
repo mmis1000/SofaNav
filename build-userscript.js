@@ -12,7 +12,8 @@ const crypto = require('crypto');
 
 const srcPath = path.join(__dirname, 'extension', 'content.js');
 const outPath = path.join(__dirname, 'dist', 'gamepad-nav.user.js');
-const src = fs.readFileSync(srcPath, 'utf8');
+// Normalized to LF so the hash is the same on every checkout (git stores LF, Windows editors may write CRLF).
+const src = fs.readFileSync(srcPath, 'utf8').replace(/\r\n/g, '\n');
 const { version } = JSON.parse(fs.readFileSync(path.join(__dirname, 'extension', 'manifest.json'), 'utf8'));
 
 const hash = crypto.createHash('sha256').update(src).digest('hex').slice(0, 12);
