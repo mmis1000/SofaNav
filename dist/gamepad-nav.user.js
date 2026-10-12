@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         Gamepad Spatial Navigation
 // @namespace    gamepad-spatial-nav
-// @version      0.3.0.202610121443
-// @build        52a3fe442ff2
-// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 52a3fe442ff2)
+// @version      0.3.0.202610121448
+// @build        561d4eb7c91a
+// @description  Navigate web pages with a controller: D-pad / left stick move focus, A click, B back, X enter, Y graph view. (build 561d4eb7c91a)
 // @match        *://*/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 // Generated from extension/content.js by build-userscript.js. Edit that file, not this one.
-// Build 52a3fe442ff2 = first 12 hex digits of sha256(extension/content.js).
+// Build 561d4eb7c91a = first 12 hex digits of sha256(extension/content.js).
 // LB/RB (switch tabs) needs the extension; in a userscript they do nothing.
 
 // Gamepad spatial navigation: D-pad / left stick moves a focus ring between
@@ -21,7 +21,7 @@
   // parent and carries out commands; the top frame does all navigation.
   const IS_FRAME = window.top !== window;
   // Replaced with the content hash by build-userscript.js; 'dev' when loaded unbuilt (extension, test pages).
-  const BUILD = '52a3fe442ff2';
+  const BUILD = '561d4eb7c91a';
   if (!IS_FRAME) console.info('[webpad] build', BUILD);
 
   // Standard-mapping button indexes.
@@ -1217,8 +1217,16 @@
       width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px',
     });
     if (hint.style.display !== 'none') {
-      const below = r.bottom + pad + 26 < innerHeight;
-      Object.assign(hint.style, { left: Math.max(4, r.left - pad) + 'px', top: (below ? r.bottom + pad + 4 : r.top - pad - 24) + 'px' });
+      // Below the element, else above it; for elements taller than the screen (a full-height
+      // sidebar) neither fits, so sit inside it along its visible bottom edge. Always on screen.
+      const h = hint.offsetHeight || 22, w = hint.offsetWidth || 160, gap = pad + 4;
+      let top;
+      if (r.bottom + gap + h <= innerHeight) top = r.bottom + gap;
+      else if (r.top - gap - h >= 0) top = r.top - gap - h;
+      else top = Math.min(r.bottom, innerHeight) - h - 8;
+      top = Math.min(Math.max(top, 4), innerHeight - h - 4);
+      const left = Math.min(Math.max(r.left - pad, 4), innerWidth - w - 4);
+      Object.assign(hint.style, { left: left + 'px', top: top + 'px' });
     }
     const scope = activeScope();
     if (scope) {

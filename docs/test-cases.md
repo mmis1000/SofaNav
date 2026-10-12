@@ -84,6 +84,7 @@ section heading on that page.
 | 33 | Containers | A on a card → "open post N" | Core: A keeps the container's own click | `activate` |
 | 34 | Containers | Enter card 3, remove it in devtools → scope ends, focus recovers nearby | Guards E16 + E12: recycled feed items (Twitter) | `checkScopes`, `recoverFocus` |
 | 35a | Containers | Put focus on the `.feed` wrapper (debug hook, simulating a desync), ↓ → lands on a card, not past the whole feed (automated) | Guards E24 | `moveNow` (`startOk` requires a current stop) |
+| 35b | Scroll box | With a window shorter than the comments panel, focus the panel → the hint "A/X enter (n) · right stick scrolls" is fully on screen (automated) | Guards E25 | `updateRing` (hint placement) |
 | 35 | Containers | "Only child" wrapper → the button is a normal target | Guards E16: single-item wrappers aren't containers | `layer` (ignored set) |
 | 36 | Scroll box | → from "Before panel" → the comments panel is one stop, hint "A/X enter (n) · right stick scrolls" | Guards E17: scrollable areas are containers even when not focusable | `addScrollBoxes`, `isScrollBox`, `updateHint` |
 | 37 | Scroll box | With the panel focused (not entered), right stick down → the panel scrolls, focus stays on it | Guards E17: scroll a panel directly | `scrollTarget` |
@@ -309,6 +310,14 @@ the current stops; otherwise focus re-anchors to the nearest stop first, as
 after scrolling away. Alt+Shift+D now logs what is focused and how it's
 classified (candidate, container, scroll box, scopes, modal) for reports like
 this. *Where:* `moveNow` (`startOk`), `debugReport`. *Checks:* 35a.
+
+**E25. The button hint could be off screen (reported on Twitter).** The hint went
+below the focused element, or above it if there was no room below; for a stop
+taller than the screen (Twitter's full-height right sidebar, a scroll container)
+neither fits and it ended up above the top edge. It wasn't clamped horizontally
+either. *Fix:* if it fits neither below nor above, it sits inside the element
+along its visible bottom edge; it's always clamped to the screen. *Where:*
+`updateRing`. *Checks:* 35b.
 
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its

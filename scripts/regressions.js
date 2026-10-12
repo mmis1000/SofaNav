@@ -157,6 +157,28 @@ const checks = {
     });
     return { ok: !!r.card, detail: `after ↓: ${r.card ? 'card ' + r.card : r.what}` };
   },
+
+  // E25: the button hint must stay on screen, also for a stop taller than the screen.
+  async 'E25 hint stays on screen for a stop taller than the screen'(page) {
+    const { press, wait } = helpers(page);
+    await page.setViewportSize({ width: 1280, height: 180 }); // the 200px comments panel no longer fits
+    await press('ArrowUp');
+    await page.evaluate(async () => {
+      const box = document.getElementById('comments');
+      box.scrollIntoView({ block: 'center' });
+      await new Promise((r) => setTimeout(r, 300));
+      __gpn.candidates();
+      __gpn.focus(box);
+    });
+    await wait(400);
+    const r = await page.evaluate(() => {
+      const h = [...document.documentElement.children].filter((e) => e.tagName === 'DIV').find((e) => e.style.whiteSpace === 'nowrap');
+      const b = h.getBoundingClientRect();
+      return { shown: h.style.display !== 'none', text: h.textContent, rect: [b.left, b.top, b.right, b.bottom].map(Math.round), vw: innerWidth, vh: innerHeight };
+    });
+    const inside = r.rect[0] >= 0 && r.rect[1] >= 0 && r.rect[2] <= r.vw && r.rect[3] <= r.vh;
+    return { ok: r.shown && inside, detail: `hint "${r.text}" at ${r.rect} in ${r.vw}x${r.vh}` };
+  },
 };
 
 (async () => {

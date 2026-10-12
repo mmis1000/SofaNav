@@ -1203,8 +1203,16 @@
       width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px',
     });
     if (hint.style.display !== 'none') {
-      const below = r.bottom + pad + 26 < innerHeight;
-      Object.assign(hint.style, { left: Math.max(4, r.left - pad) + 'px', top: (below ? r.bottom + pad + 4 : r.top - pad - 24) + 'px' });
+      // Below the element, else above it; for elements taller than the screen (a full-height
+      // sidebar) neither fits, so sit inside it along its visible bottom edge. Always on screen.
+      const h = hint.offsetHeight || 22, w = hint.offsetWidth || 160, gap = pad + 4;
+      let top;
+      if (r.bottom + gap + h <= innerHeight) top = r.bottom + gap;
+      else if (r.top - gap - h >= 0) top = r.top - gap - h;
+      else top = Math.min(r.bottom, innerHeight) - h - 8;
+      top = Math.min(Math.max(top, 4), innerHeight - h - 4);
+      const left = Math.min(Math.max(r.left - pad, 4), innerWidth - w - 4);
+      Object.assign(hint.style, { left: left + 'px', top: top + 'px' });
     }
     const scope = activeScope();
     if (scope) {
