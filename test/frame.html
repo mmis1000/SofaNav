@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test frame</title>
+<style>
+  body { margin: 8px; background: #1f2a33; color: #ddd; font: 13px system-ui, sans-serif; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0; }
+  button, input { background: #3a4a57; color: #fff; border: 0; border-radius: 4px; padding: 8px; font: inherit; }
+  input { background: #2b3842; border: 1px solid #567; }
+  .tall { height: 260px; border: 1px dashed #456; margin-top: 8px; display: flex; align-items: end; padding: 6px; }
+  #log { color: #fc6; min-height: 1.4em; }
+</style>
+</head>
+<body>
+<div><b id="origin"></b></div>
+<div id="log">—</div>
+<div class="grid">
+  <button>F1</button><button>F2</button><button>F3</button>
+  <button>F4</button><button id="hideMe">Hide me</button><button>F6</button>
+</div>
+<input placeholder="Text in frame">
+<div class="tall"><button>Below the fold (scroll the frame)</button></div>
+<script>
+  const label = new URLSearchParams(location.search).get('label') || 'frame';
+  document.getElementById('origin').textContent = label + ' — ' + location.origin;
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    document.getElementById('log').textContent = 'click: ' + b.textContent;
+    // Tell the test page too, so the click is visible (and checkable) from the top.
+    parent.postMessage({ test: 'frame-click', label, text: b.textContent }, '*');
+    if (b.id === 'hideMe') setTimeout(() => (b.style.visibility = 'hidden'), 150);
+  });
+</script>
+<!-- Stands in for the extension/userscript being injected into this frame. -->
+<script src="/extension/content.js"></script>
+</body>
+</html>

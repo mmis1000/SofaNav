@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gamepad Nav Test</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #1b1b1b; color: #ddd; font: 14px system-ui, "Microsoft JhengHei", sans-serif; }
+  header { padding: 16px 24px; background: linear-gradient(90deg, #2a1846, #1b1b1b); }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  h2 { margin: 32px 24px 12px; font-size: 16px; color: #aaa; }
+  .row { display: flex; gap: 12px; align-items: center; padding: 0 24px; flex-wrap: wrap; }
+  button, .btn { background: #3a3a3a; color: #fff; border: 0; border-radius: 4px; padding: 10px 16px; font: inherit; cursor: pointer; text-decoration: none; }
+  button:focus, a:focus { outline: none; }
+  .install { background: #107c10; width: 140px; }
+  .icon { width: 42px; padding: 10px 0; }
+  .spacer { flex: 1; }
+  .thumb { width: 62px; height: 42px; padding: 0; border-radius: 4px; background: linear-gradient(135deg, #3d6, #36c); }
+  .thumb:nth-child(odd) { background: linear-gradient(135deg, #c3a, #63f); }
+  .info { display: flex; gap: 24px; padding: 16px 24px; margin-top: 16px; background: #262626; }
+  .info a { color: #7c7; }
+  .tabs { justify-content: center; margin-top: 24px; }
+  .tabs button { background: none; border-bottom: 2px solid transparent; border-radius: 0; }
+  .tabs button[aria-selected=true] { border-color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 0 24px; }
+  .card { height: 90px; background: #333; border-radius: 6px; display: flex; align-items: end; padding: 8px; box-sizing: border-box; }
+  .scroller { display: flex; gap: 12px; overflow-x: auto; padding: 4px 24px 12px; }
+  .scroller .card { flex: 0 0 180px; }
+  form { display: grid; gap: 10px; max-width: 320px; padding: 0 24px; }
+  input, select, textarea { background: #2c2c2c; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 8px; font: inherit; }
+  dialog { background: #2a2a2a; color: #ddd; border: 1px solid #555; border-radius: 8px; }
+  dialog .row { padding: 0; margin-top: 12px; }
+  .tall { height: 900px; margin: 24px; border: 1px dashed #444; display: flex; align-items: center; justify-content: center; color: #666; }
+  #status { position: fixed; right: 12px; top: 12px; background: rgba(0,0,0,.8); padding: 10px 12px; border-radius: 6px;
+            font: 12px ui-monospace, monospace; line-height: 1.6; max-width: 300px; z-index: 10; }
+  #status b { color: #7c7; }
+  #log { color: #fc6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gamepad Nav Test</h1>
+  <div>Controller: D-pad/left stick move · A click · B back · Y graph · LT/RT page · right stick scroll · View on/off</div>
+  <div>Keyboard fallback: arrows · Enter = A · Backspace = B · X = enter container · Y = graph · PgUp/PgDn = LT/RT · V = View · Q/E/Z/C = stick at 45° ↖↗↙↘ · J/L rotate aim, K = push stick at aim · Y twice = stick pie</div>
+</header>
+
+<h2>Store layout (from your screenshot)</h2>
+<div class="row">
+  <button class="install">安裝</button>
+  <button style="width:158px">購買 NT$480.00</button>
+  <button class="icon">♡</button>
+  <button class="icon">≡</button>
+  <button class="icon">…</button>
+  <div class="spacer"></div>
+  <button style="width:65px">&lt;</button>
+  <button class="thumb" aria-label="screenshot 1"></button>
+  <button class="thumb" aria-label="screenshot 2"></button>
+  <button class="thumb" aria-label="screenshot 3"></button>
+  <button class="thumb" aria-label="screenshot 4"></button>
+  <button class="thumb" aria-label="screenshot 5"></button>
+</div>
+<div class="info">
+  <div>15+ 輔15級</div>
+  <div class="spacer"></div>
+  <div>家長監護資訊 <a href="#parent">深入了解</a><br>您取得之購買... <a href="#store">深入了解</a></div>
+</div>
+<div class="row tabs" role="tablist">
+  <button role="tab" aria-selected="true">詳細資料</button>
+  <button role="tab">評論</button>
+  <button role="tab">更多主題</button>
+</div>
+
+<h2>Chip bar (YouTube-style) — the › arrow hides itself after clicking; focus should land on a nearby chip</h2>
+<div class="row" style="flex-wrap:nowrap;max-width:700px">
+  <button id="chipPrev" style="display:none">‹</button>
+  <div id="chips" style="display:flex;gap:8px;overflow:hidden;flex:1">
+    <button style="flex:none">全部</button><button style="flex:none">「Shitora ch. 涼風しとら」上傳的影片</button>
+    <button style="flex:none">相關內容</button><button style="flex:none">為你推薦</button><button style="flex:none">直播</button>
+    <button style="flex:none">最新上傳</button><button style="flex:none">已觀看</button>
+  </div>
+  <button id="chipNext">›</button>
+</div>
+<script>
+  const chips = document.getElementById('chips'), chipPrev = document.getElementById('chipPrev'), chipNext = document.getElementById('chipNext');
+  // Like YouTube: scroll the bar, then hide the arrow you clicked a moment later (after the scroll animation).
+  chipNext.onclick = () => { chips.scrollTo({ left: chips.scrollWidth, behavior: 'smooth' }); setTimeout(() => { chipNext.style.display = 'none'; chipPrev.style.display = ''; }, 250); };
+  chipPrev.onclick = () => { chips.scrollTo({ left: 0, behavior: 'smooth' }); setTimeout(() => { chipPrev.style.display = 'none'; chipNext.style.display = ''; }, 250); };
+</script>
+
+<h2>Iframes — elements inside frames are navigated as if they were on this page</h2>
+<div class="row" style="align-items:flex-start">
+  <button>Before frames</button>
+  <iframe id="sameFrame" title="same-origin frame" style="width:300px;height:230px;border:2px solid #555;border-radius:6px"></iframe>
+  <iframe id="crossFrame" title="cross-origin frame" style="width:300px;height:230px;border:2px solid #555;border-radius:6px"></iframe>
+  <iframe id="plainFrame" title="frame without the script" style="width:160px;height:100px;border:2px solid #555;border-radius:6px"
+          srcdoc="<body style='background:#332;color:#ddd;font:13px system-ui'>No script in here: this whole frame is one element.<br><button>inner</button></body>"></iframe>
+  <button>After frames</button>
+</div>
+<script>
+  // Same page from another origin: localhost and 127.0.0.1 are different origins.
+  const otherHost = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+  document.getElementById('sameFrame').src = 'frame.html?label=same-origin';
+  document.getElementById('crossFrame').src = `${location.protocol}//${otherHost}:${location.port}/test/frame.html?label=cross-origin`;
+  addEventListener('message', (e) => {
+    if (e.data?.test === 'frame-click') document.getElementById('log').textContent = `click in ${e.data.label}: ${e.data.text}`;
+  });
+</script>
+
+<h2>Unreachable off-screen elements — none of these should get arrows</h2>
+<div class="row">
+  <button id="clipVisible">Visible in clipped row</button>
+  <div style="overflow:hidden;width:260px;border:1px dashed #555">
+    <div style="display:flex;gap:8px;width:900px">
+      <button>Clip A (visible)</button><button style="margin-left:300px" id="clipHidden1">Clipped B</button><button id="clipHidden2">Clipped C</button>
+    </div>
+  </div>
+</div>
+<!-- Off-canvas drawer, parked past the right edge like a closed slide-out menu. -->
+<nav id="drawer" style="position:fixed;top:120px;right:-280px;width:240px;background:#333;padding:8px;display:grid;gap:6px">
+  <a href="#d1">Drawer link 1</a><a href="#d2">Drawer link 2</a><button>Drawer button</button>
+</nav>
+
+<h2>Containers (Twitter-style cards) — X enters a card, B leaves</h2>
+<style>
+  .feed { max-width: 560px; margin: 0 24px; display: grid; gap: 10px; }
+  .pcard { background: #262626; border: 1px solid #3a3a3a; border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 44px 1fr; gap: 10px; cursor: pointer; }
+  .pcard .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,#3d6,#36c); display: block; }
+  .pcard .name { color: #fff; font-weight: 600; }
+  .pcard .actions { display: flex; gap: 14px; margin-top: 6px; }
+  .pcard .actions button { background: none; padding: 2px 4px; color: #aaa; }
+  .pcard .quote { margin-top: 8px; display: block; background: #1f1f1f; }
+  .feed > .pcard { align-items: start; }
+</style>
+<div class="feed">
+  <article class="pcard" tabindex="0" data-post="1">
+    <a class="avatar" href="#u1" aria-label="avatar 1"></a>
+    <div><a class="name" href="#u1">User One</a> <span>first post, with a <a href="#tag">#link</a> in the text</span>
+      <div class="actions"><button>Reply</button><button>Repost</button><button>Like</button></div></div>
+  </article>
+  <article class="pcard" tabindex="0" data-post="2">
+    <a class="avatar" href="#u2" aria-label="avatar 2"></a>
+    <div><a class="name" href="#u2">User Two</a> <span>quoting another post:</span>
+      <article class="pcard quote" tabindex="0" data-post="2q">
+        <div><a class="name" href="#u9">Quoted User</a> <span>the quoted post</span></div>
+        <div class="actions"><button>Quote action</button><button>Quote like</button></div>
+      </article>
+      <div class="actions"><button>Reply</button><button>Like</button></div></div>
+  </article>
+  <article class="pcard" tabindex="0" data-post="3">
+    <a class="avatar" href="#u3" aria-label="avatar 3"></a>
+    <div><a class="name" href="#u3">User Three</a> <span>plain post</span>
+      <div class="actions"><button>Reply</button><button>Like</button></div></div>
+  </article>
+</div>
+<div class="row" style="margin-top:12px">
+  <div tabindex="0" style="padding:6px;border:1px dashed #555"><button>Only child (wrapper is ignored)</button></div>
+</div>
+<script>
+  // Clicking a card (not something inside it) "opens the post".
+  document.querySelectorAll('.pcard').forEach((c) => c.addEventListener('click', (e) => {
+    if (e.target.closest('a, button') || e.target.closest('.pcard') !== c) return;
+    note('open post ' + c.dataset.post);
+  }));
+</script>
+
+<h2>Scroll box (comments panel) — one stop; right stick scrolls it; A/X enters</h2>
+<div class="row" style="align-items:flex-start">
+  <button>Before panel</button>
+  <div id="comments" style="width:320px;height:200px;overflow-y:auto;border:1px solid #555;border-radius:6px;padding:6px;background:#202020"></div>
+  <button>After panel</button>
+</div>
+<script>
+  // Plain (non-focusable) scrolling box full of comments, each with a name link and a like button.
+  document.getElementById('comments').innerHTML = Array.from({ length: 15 }, (_, i) =>
+    `<div style="padding:6px 0;border-bottom:1px solid #333"><a href="#c${i + 1}">@commenter${i + 1}</a> comment ${i + 1}<br><button>Like ${i + 1}</button></div>`).join('');
+</script>
+
+<h2>Orphan case — E is never the nearest target from anywhere (should be rescued, amber outline)</h2>
+<div style="position:relative;height:260px;margin:0 24px">
+  <button style="position:absolute;left:0;top:0;width:60px">A</button>
+  <button style="position:absolute;left:260px;top:0;width:60px">B</button>
+  <button style="position:absolute;left:140px;top:110px;width:40px">E</button>
+  <button style="position:absolute;left:0;top:220px;width:60px">C</button>
+  <button style="position:absolute;left:260px;top:220px;width:60px">D</button>
+</div>
+
+<h2>Grid</h2>
+<div class="grid">
+  <a class="card btn" href="#g1">Game 1</a><a class="card btn" href="#g2">Game 2</a><a class="card btn" href="#g3">Game 3</a>
+  <a class="card btn" href="#g4">Game 4</a><a class="card btn" href="#g5">Game 5</a><a class="card btn" href="#g6">Game 6</a>
+  <a class="card btn" href="#g7">Game 7</a><a class="card btn" href="#g8">Game 8</a><a class="card btn" href="#g9">Game 9</a>
+  <a class="card btn" href="#g10">Game 10</a>
+</div>
+
+<h2>Horizontal scroller (overflow)</h2>
+<div class="scroller">
+  <button class="card">Item 1</button><button class="card">Item 2</button><button class="card">Item 3</button>
+  <button class="card">Item 4</button><button class="card">Item 5</button><button class="card">Item 6</button>
+  <button class="card">Item 7</button><button class="card">Item 8</button><button class="card">Item 9</button>
+  <button class="card">Item 10</button>
+</div>
+
+<h2>Form & dialog</h2>
+<form onsubmit="event.preventDefault(); note('form submitted')">
+  <input placeholder="Text input (A to focus, B to leave)">
+  <select><option>Option A</option><option>Option B</option><option>Option C</option></select>
+  <label><input type="checkbox"> Checkbox</label>
+  <div class="row" style="padding:0">
+    <button type="submit">Submit</button>
+    <button type="button" id="openDialog">Open dialog</button>
+  </div>
+</form>
+<dialog id="dlg">
+  <div>Focus should stay inside this dialog. B closes it.</div>
+  <div class="row"><button id="ok">OK</button><button id="cancel">Cancel</button></div>
+</dialog>
+
+<div class="tall">long empty space — moving down should scroll here</div>
+<div class="row" style="padding-bottom:48px"><button>Bottom button</button><button>Another</button></div>
+
+<div id="status">pads: <span id="pads">none (press a button)</span><br>last: <span id="log">—</span><br>aim (J/L, push K): <span id="aim">-60°</span></div>
+
+<script>
+  // Log clicks so you can see what A activated.
+  const note = (t) => (document.getElementById('log').textContent = t);
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('button, a, input, select');
+    if (el) note('click: ' + (el.textContent.trim() || el.getAttribute('aria-label') || el.tagName).slice(0, 30));
+    if (el?.role === 'tab') document.querySelectorAll('[role=tab]').forEach((t) => t.setAttribute('aria-selected', t === el));
+  });
+  document.getElementById('openDialog').onclick = () => document.getElementById('dlg').showModal();
+  document.getElementById('ok').onclick = document.getElementById('cancel').onclick = () => document.getElementById('dlg').close();
+
+  // Keyboard fallback: a virtual standard-mapping pad appended to the real ones.
+  const virtualPad = { id: 'keyboard (virtual)', index: 99, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+    buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+  const KEYMAP = { ArrowUp: 12, ArrowDown: 13, ArrowLeft: 14, ArrowRight: 15, Enter: 0, Backspace: 1,
+    KeyX: 2, KeyY: 3, PageUp: 6, PageDown: 7, KeyV: 8 };
+  const realGetGamepads = navigator.getGamepads.bind(navigator);
+  let virtualActive = false;
+  navigator.getGamepads = () => [...realGetGamepads(), ...(virtualActive ? [virtualPad] : [])];
+  // Q/E/Z/C push the virtual left stick diagonally.
+  const STICK_KEYS = { KeyQ: [-0.71, -0.71], KeyE: [0.71, -0.71], KeyZ: [-0.71, 0.71], KeyC: [0.71, 0.71] };
+  // Free aim: J/L rotate the aim 10° (shown in the status box), K pushes the stick at it.
+  let aim = -60;
+  const aimVec = () => [Math.cos(aim * Math.PI / 180), Math.sin(aim * Math.PI / 180)];
+  const typing = () => document.activeElement?.matches('input:not([type=checkbox]), textarea, select');
+  addEventListener('keydown', (e) => {
+    if (typing() || (e.code !== 'KeyJ' && e.code !== 'KeyL')) return;
+    aim += e.code === 'KeyL' ? 10 : -10;
+    aim = ((aim + 540) % 360) - 180;
+    document.getElementById('aim').textContent = aim + '°';
+  }, true);
+  for (const type of ['keydown', 'keyup']) {
+    addEventListener(type, (e) => {
+      const stick = e.code === 'KeyK' ? aimVec() : STICK_KEYS[e.code];
+      if (stick && !typing() && !e.altKey && !e.ctrlKey) {
+        e.preventDefault();
+        if (type === 'keydown') virtualPad.axes = [...stick, 0, 0];
+        else setTimeout(() => (virtualPad.axes = [0, 0, 0, 0]), 60);
+        if (!virtualActive) { virtualActive = true; dispatchEvent(new Event('gamepadconnected')); }
+        return;
+      }
+      const i = KEYMAP[e.code];
+      if (i === undefined || e.altKey || e.ctrlKey || (typing() && i !== 1 && type === 'keydown')) return;
+      if (typing() && i === 1 && document.activeElement.value) return; // let Backspace delete text
+      e.preventDefault();
+      if (type === 'keydown') virtualPad.buttons[i] = { pressed: true, value: 1 };
+      // Release a little later so a quick tap still spans a polling frame.
+      else setTimeout(() => (virtualPad.buttons[i] = { pressed: false, value: 0 }), 60);
+      if (!virtualActive) { virtualActive = true; dispatchEvent(new Event('gamepadconnected')); }
+    }, true);
+  }
+
+  // Status panel.
+  setInterval(() => {
+    const pads = navigator.getGamepads().filter(Boolean);
+    document.getElementById('pads').innerHTML = pads.length
+      ? pads.map((p) => `<b>${p.id.slice(0, 40)}</b> (${p.mapping || 'non-standard'})`).join('<br>')
+      : 'none (press a button)';
+  }, 500);
+</script>
+<script>
+  // ?timer: drive the polling loop with a timer instead of animation frames (for
+  // automated testing in a background/throttled tab where frames barely run).
+  if (new URLSearchParams(location.search).has('timer')) {
+    window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now()), 16);
+  }
+</script>
+<script>window.__gpnDebug = true;</script>
+<script src="../extension/content.js"></script>
+</body>
+</html>

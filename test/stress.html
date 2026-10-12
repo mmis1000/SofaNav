@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gamepad Nav Stress</title>
+<style>
+  body { margin: 0; background: #15202b; color: #ddd; font: 14px system-ui, sans-serif; }
+  .post { border-bottom: 1px solid #333; padding: 10px 16px; max-width: 600px; margin: 0 auto; }
+  .post a, .post button { margin-right: 10px; color: #8cf; background: none; border: 0; font: inherit; }
+</style>
+</head>
+<body>
+<div id="feed"></div>
+<script>
+  // Twitter-like: a long feed of posts, each several links/buttons deep inside ~20 wrapper divs.
+  const POSTS = 1500, DEPTH = 20;
+  const feed = document.getElementById('feed');
+  const html = [];
+  for (let i = 0; i < POSTS; i++) {
+    const open = '<div>'.repeat(DEPTH), close = '</div>'.repeat(DEPTH);
+    html.push(`<div class="post">${open}<a href="#u${i}">@user${i}</a><span>Post ${i} text text text</span><br>` +
+      `<button>Reply</button><button>Repost</button><button>Like</button><a href="#p${i}">Share</a>${close}</div>`);
+  }
+  feed.innerHTML = html.join('');
+  window.__gpnDebug = true;
+</script>
+<script src="../extension/content.js"></script>
+</body>
+</html>

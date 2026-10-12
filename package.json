@@ -1,0 +1,10 @@
+{
+  "name": "webpad",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Console-style gamepad navigation for any web page (browser extension + userscript).",
+  "scripts": {
+    "build": "node build-userscript.js",
+    "serve": "python -m http.server 8765"
+  }
+}
