@@ -15,7 +15,7 @@
   if (!IS_FRAME) console.info('[sofanav] build', BUILD);
 
   // Standard-mapping button indexes.
-  const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+  const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
   const HOLD_BACK = 700; // ms holding B that always goes back a page
   const STICK_PRESS = 0.55; // stick deflection that counts as pushing
   const STICK_RELEASE = 0.45; // ...and that it must drop below to count as released (keep close to STICK_PRESS)
@@ -69,7 +69,8 @@
   // phase: idle -> settle (stick only) -> held. See handleDirection.
   const held = { phase: 'idle', stick: false, angle: null, since: 0, next: 0, lastMoveAt: -Infinity, releasedAt: null, calmSince: null };
   let looping = false;
-  let ring, toast, toastTimer, hint, scopeBox;
+  let ring, toast, toastTimer, hint, scopeBox, cursor;
+  let mouse = null; // mouse mode state: { x, y, over, frame, last, nudge: { button: next repeat time } }
 
   // ---------- candidate discovery ----------
 
@@ -625,6 +626,25 @@
   function toTop(f, l, clip = true) {
     const empty = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
     if (!l || !f.iframe.isConnected) return empty;
+    const { ox, oy, cw, ch, kx, ky } = frameGeometry(f);
+    let left = ox + l.left * kx, right = ox + l.right * kx, top = oy + l.top * ky, bottom = oy + l.bottom * ky;
+    if (clip) {
+      left = Math.max(left, ox); right = Math.min(right, ox + cw);
+      top = Math.max(top, oy); bottom = Math.min(bottom, oy + ch);
+    }
+    if (right <= left || bottom <= top) return empty;
+    return { left, top, right, bottom, width: right - left, height: bottom - top, x: left, y: top };
+  }
+
+  // Top viewport point -> the frame's viewport, or null outside its content box.
+  function fromTop(f, x, y) {
+    const { ox, oy, cw, ch, kx, ky } = frameGeometry(f);
+    if (x < ox || y < oy || x >= ox + cw || y >= oy + ch || !kx || !ky) return null;
+    return { x: (x - ox) / kx, y: (y - oy) / ky };
+  }
+
+  // Where the frame's content box is in the top viewport, and its scale to the frame's viewport.
+  function frameGeometry(f) {
     const ir = f.iframe.getBoundingClientRect();
     const cs = getComputedStyle(f.iframe);
     const sx = f.iframe.offsetWidth ? ir.width / f.iframe.offsetWidth : 1; // CSS transform scale
@@ -634,14 +654,7 @@
     const ox = ir.left + (f.iframe.clientLeft + padL) * sx;
     const oy = ir.top + (f.iframe.clientTop + padT) * sy;
     const cw = (f.iframe.clientWidth - padL - padR) * sx, ch = (f.iframe.clientHeight - padT - padB) * sy;
-    const kx = cw / f.vw, ky = ch / f.vh;
-    let left = ox + l.left * kx, right = ox + l.right * kx, top = oy + l.top * ky, bottom = oy + l.bottom * ky;
-    if (clip) {
-      left = Math.max(left, ox); right = Math.min(right, ox + cw);
-      top = Math.max(top, oy); bottom = Math.min(bottom, oy + ch);
-    }
-    if (right <= left || bottom <= top) return empty;
-    return { left, top, right, bottom, width: right - left, height: bottom - top, x: left, y: top };
+    return { ox, oy, cw, ch, kx: cw / f.vw, ky: ch / f.vh };
   }
 
   // Visible in the top frame: not clipped away, and the iframe isn't covered there.
@@ -778,6 +791,7 @@
     let byId = new Map();
     let seq = 0;
     let engineEl = null, engineId = null, lastSent = '';
+    let pointerOver = null; // mouse mode: element under the cursor in this frame
     const idOf = (el) => {
       let id = ids.get(el);
       if (!id) ids.set(el, (id = ++seq));
@@ -892,8 +906,16 @@
         const horiz = d.dir === 'left' || d.dir === 'right', sign = d.dir === 'down' || d.dir === 'right' ? 1 : -1;
         el?.scrollBy({ [horiz ? 'left' : 'top']: (horiz ? el.clientWidth : el.clientHeight) * 0.6 * sign, behavior: 'smooth' });
       } else if (d.type === 'scroll') {
-        // A focused scroll stop scrolls itself; otherwise whatever contains focus.
-        (engineEl && scrollBoxes.has(engineEl) ? engineEl : scrollParent(engineEl, 'y')).scrollBy(d.dx, d.dy);
+        // Mouse mode: what's under the cursor. Else a focused scroll stop scrolls itself;
+        // otherwise whatever contains focus.
+        if (Number.isFinite(d.x) && Number.isFinite(d.y)) scrollUnder(document.elementFromPoint(d.x, d.y), d.dy ? 'y' : 'x').scrollBy(d.dx, d.dy);
+        else (engineEl && scrollBoxes.has(engineEl) ? engineEl : scrollParent(engineEl, 'y')).scrollBy(d.dx, d.dy);
+      } else if (d.type === 'pointer') {
+        // Mouse mode over this frame (coordinates in this frame's viewport).
+        if (d.kind === 'leave' || !Number.isFinite(d.x) || !Number.isFinite(d.y)) { hoverTo(pointerOver, null, 0, 0); pointerOver = null; return; }
+        const el = document.elementFromPoint(d.x, d.y);
+        if (d.kind === 'move') { hoverTo(pointerOver, el, d.x, d.y); pointerOver = el; }
+        else if (d.kind === 'click' && el) clickAtPoint(el, d.x, d.y);
       } else if (d.type === 'page') {
         const t = engineEl && scrollBoxes.has(engineEl) ? engineEl : scrollParent(engineEl, 'y');
         t.scrollBy({ top: (t === document.scrollingElement ? innerHeight : t.clientHeight) * 0.85 * d.sign, behavior: 'smooth' });
@@ -1464,6 +1486,153 @@
     if (EXT) extSend({ cmd: 'tab', delta });
   }
 
+  // ---------- mouse mode ----------
+  // The escape hatch for whatever focus navigation can't reach (odd widgets, hover-only
+  // controls, clicking outside a popup to close it). L3 toggles a cursor: left stick moves it
+  // (faster the further you push), D-pad nudges it, A clicks under it, right stick and LT/RT
+  // scroll what's under it, B is still Back. Moving sends the usual hover events. The events
+  // are scripted (untrusted): page handlers and link/button activation work; browser-native
+  // things (selecting text, dragging scrollbars, opening a native <select> list) don't.
+  const MOUSE_SPEED = 1500; // px/s at full stick
+  const MOUSE_DEADZONE = 0.15;
+  const MOUSE_NUDGE = 4; // px per D-pad step
+
+  function mouseEvents(el, types, x, y, extra = {}) {
+    const opts = { bubbles: true, cancelable: true, composed: true, view: document.defaultView, clientX: x, clientY: y, button: 0, ...extra };
+    for (const type of types) {
+      const down = type.endsWith('down');
+      const init = { ...opts, buttons: down ? 1 : 0 };
+      el.dispatchEvent(type.startsWith('pointer') ? new PointerEvent(type, { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true }) : new MouseEvent(type, init));
+    }
+  }
+
+  // Hover, like a real pointer moving from `prev` to `el`: out/over bubble; leave/enter go to
+  // each ancestor that was left or entered.
+  function hoverTo(prev, el, x, y) {
+    if (prev !== el) {
+      if (prev?.isConnected) {
+        mouseEvents(prev, ['pointerout', 'mouseout'], x, y, { relatedTarget: el });
+        for (let n = prev; n && !(el && n.contains(el)); n = n.parentElement) mouseEvents(n, ['pointerleave', 'mouseleave'], x, y, { bubbles: false, relatedTarget: el });
+      }
+      if (el) {
+        mouseEvents(el, ['pointerover', 'mouseover'], x, y, { relatedTarget: prev });
+        const entered = [];
+        for (let n = el; n && !(prev?.isConnected && n.contains(prev)); n = n.parentElement) entered.unshift(n);
+        for (const n of entered) mouseEvents(n, ['pointerenter', 'mouseenter'], x, y, { bubbles: false, relatedTarget: prev });
+      }
+    }
+    if (el) mouseEvents(el, ['pointermove', 'mousemove'], x, y);
+  }
+
+  // A click at a point: press, focus (or blur, on a blank spot) like a real click, release, click.
+  function clickAtPoint(el, x, y) {
+    mouseEvents(el, ['pointerdown', 'mousedown'], x, y);
+    const focusable = el.closest?.(FOCUSABLE_SEL);
+    if (focusable) { try { focusable.focus({ preventScroll: true }); } catch {} }
+    else if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur?.();
+    mouseEvents(el, ['pointerup', 'mouseup', 'click'], x, y, { detail: 1 });
+  }
+
+  // What scrolls at an element: itself if it scrolls, else its nearest scrolling ancestor.
+  function scrollUnder(el, axis) {
+    if (el instanceof Element && el !== document.body && el !== document.documentElement) {
+      const cs = getComputedStyle(el);
+      const ov = axis === 'y' ? cs.overflowY : cs.overflowX;
+      const room = axis === 'y' ? el.scrollHeight > el.clientHeight + 1 : el.scrollWidth > el.clientWidth + 1;
+      if (room && /(auto|scroll|overlay)/.test(ov)) return el;
+    }
+    return scrollParent(el, axis);
+  }
+
+  // What's under the cursor: an element here, or a point in a frame that has a client.
+  function hitAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (el?.tagName === 'IFRAME' && frameState(el).hasClient) {
+      const f = frameState(el), p = fromTop(f, x, y);
+      if (p) return { el, frame: f, fx: p.x, fy: p.y };
+    }
+    return { el, frame: null };
+  }
+
+  function mouseMove() {
+    const { x, y } = mouse;
+    Object.assign(cursor.style, { left: x + 'px', top: y + 'px' });
+    const hit = hitAt(x, y);
+    if (mouse.frame && mouse.frame !== hit.frame) postToFrame(mouse.frame, { type: 'pointer', kind: 'leave' });
+    mouse.frame = hit.frame;
+    if (hit.frame) postToFrame(hit.frame, { type: 'pointer', kind: 'move', x: hit.fx, y: hit.fy });
+    hoverTo(mouse.over, hit.el, x, y);
+    mouse.over = hit.el;
+  }
+
+  function mouseClick() {
+    const hit = hitAt(mouse.x, mouse.y);
+    if (hit.frame) postToFrame(hit.frame, { type: 'pointer', kind: 'click', x: hit.fx, y: hit.fy });
+    else if (hit.el) clickAtPoint(hit.el, mouse.x, mouse.y);
+  }
+
+  function mouseScroll(dx, dy) {
+    const hit = hitAt(mouse.x, mouse.y);
+    if (hit.frame) postToFrame(hit.frame, { type: 'scroll', dx, dy, x: hit.fx, y: hit.fy });
+    else scrollUnder(hit.el, dy ? 'y' : 'x').scrollBy(dx, dy);
+  }
+
+  function toggleMouse(at) {
+    ensureUi();
+    if (mouse) {
+      // Back to focus navigation, from the stop under (or nearest to) the cursor.
+      const { x, y } = mouse;
+      if (mouse.frame) postToFrame(mouse.frame, { type: 'pointer', kind: 'leave' });
+      hoverTo(mouse.over, null, x, y);
+      mouse = null;
+      cursor.style.display = 'none';
+      const dist = (el) => { const r = el.getBoundingClientRect(); return Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom)); };
+      const near = candidates().filter((el) => inViewport(el.getBoundingClientRect())).sort((a, b) => dist(a) - dist(b))[0];
+      lastMove = null;
+      if (near) setCurrent(near); else showRing();
+      say('Mouse mode off');
+      return;
+    }
+    const r = current?.isConnected ? current.getBoundingClientRect() : null;
+    const start = at || (r && inViewport(r) ? { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 } : { x: innerWidth / 2, y: innerHeight / 2 });
+    mouse = { x: start.x, y: start.y, over: null, frame: null, last: performance.now(), nudge: {} };
+    hideRing();
+    cursor.style.display = 'block';
+    mouseMove();
+    say('Mouse mode · L3 to leave');
+  }
+
+  function mouseTick(now, buttons, axes, pressed) {
+    const dt = Math.min(50, now - mouse.last) / 1000;
+    mouse.last = now;
+    let dx = 0, dy = 0;
+    const [ax, ay] = axes, mag = Math.hypot(ax, ay);
+    if (mag > MOUSE_DEADZONE) {
+      const k = ((Math.min(mag, 1) - MOUSE_DEADZONE) / (1 - MOUSE_DEADZONE)) ** 2 * MOUSE_SPEED * dt / mag;
+      dx += ax * k; dy += ay * k;
+    }
+    // D-pad: one nudge per press, then keyboard-style repeat while held.
+    for (const [b, ux, uy] of [[BTN.LEFT, -1, 0], [BTN.RIGHT, 1, 0], [BTN.UP, 0, -1], [BTN.DOWN, 0, 1]]) {
+      if (!buttons[b]) { delete mouse.nudge[b]; continue; }
+      if (pressed(b)) mouse.nudge[b] = now + REPEAT_DELAY;
+      else if (now >= mouse.nudge[b]) mouse.nudge[b] = now + 16;
+      else continue;
+      dx += ux * MOUSE_NUDGE; dy += uy * MOUSE_NUDGE;
+    }
+    if (dx || dy) {
+      mouse.x = Math.min(Math.max(mouse.x + dx, 0), innerWidth - 1);
+      mouse.y = Math.min(Math.max(mouse.y + dy, 0), innerHeight - 1);
+      mouseMove();
+    }
+    if (pressed(BTN.A)) mouseClick();
+    const sx = Math.abs(axes[2]) > SCROLL_DEADZONE ? axes[2] : 0;
+    const sy = Math.abs(axes[3]) > SCROLL_DEADZONE ? axes[3] : 0;
+    const curve = (v) => Math.sign(v) * v * v * SCROLL_SPEED;
+    if (sy) mouseScroll(0, curve(sy));
+    if (sx) mouseScroll(curve(sx), 0);
+    if (pressed(BTN.LT) || pressed(BTN.RT)) mouseScroll(0, innerHeight * 0.85 * (pressed(BTN.LT) ? -1 : 1));
+  }
+
   // ---------- UI ----------
 
   function ensureUi() {
@@ -1484,10 +1653,20 @@
     scopeBox = document.createElement('div');
     scopeBox.setAttribute('style', 'position:fixed;z-index:2147483645;pointer-events:none;display:none;box-sizing:border-box;' +
       'border:2px dashed #ffcc00;border-radius:8px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);');
-    document.documentElement.append(ring, toast, hint, scopeBox);
+    // Mouse mode cursor (its tip is the point; hit tests ignore it: pointer-events none).
+    // An inline SVG arrow (not an image URL, which a page's CSP could block); its tip is at 1,1.
+    cursor = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    cursor.setAttribute('width', '20'); cursor.setAttribute('height', '28');
+    cursor.setAttribute('style', 'position:fixed;z-index:2147483647;pointer-events:none;display:none;margin:-1px 0 0 -1px;' +
+      'overflow:visible;filter:drop-shadow(0 0 3px #107c10);');
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arrow.setAttribute('d', 'M1 1 L1 22 L6.5 16.5 L10 25 L13.5 23.5 L10 15.5 L17 15.5 Z');
+    arrow.setAttribute('fill', '#fff'); arrow.setAttribute('stroke', '#000'); arrow.setAttribute('stroke-width', '1.5'); arrow.setAttribute('stroke-linejoin', 'round');
+    cursor.append(arrow);
+    document.documentElement.append(ring, toast, hint, scopeBox, cursor);
   }
 
-  function showRing() { ensureUi(); ring.style.display = 'block'; updateHint(); updateRing(); }
+  function showRing() { ensureUi(); if (mouse) return; ring.style.display = 'block'; updateHint(); updateRing(); }
   function hideRing() { if (ring) { ring.style.display = 'none'; hint.style.display = 'none'; scopeBox.style.display = 'none'; } }
 
   function updateHint() {
@@ -1819,7 +1998,7 @@
   if (IS_FRAME) { startClient(); return; }
 
   // Test pages can set window.__sofanavDebug before loading this script to inspect state.
-  if (window.__sofanavDebug) window.__sofanav = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, back, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
+  if (window.__sofanavDebug) window.__sofanav = { candidates, refreshFrames, frameState, buildGraph, angleTable, isContainer, isScrollContainer, isScrollStop, current: () => current, back, toggleMouse, mouse: () => mouse && { x: mouse.x, y: mouse.y, over: mouse.over }, mouseTo: (x, y) => { if (mouse) { mouse.x = x; mouse.y = y; mouseMove(); } }, focus: (el) => { lastMove = null; candidates(); setCurrent(el); }, state: () => ({ moving, enabled, held: { ...held } }), lastMove: () => lastMove, scopes: () => scopes.slice() };
 
   // Menu (☰) or Alt+Shift+D: what is focused and how the script classifies it (for bug reports).
   async function debugReport() {
@@ -1984,9 +2163,11 @@
     }
 
     if (enabled && !document.hidden) {
-      updateNeedle(handleDirection(now, buttons, axes));
+      if (pressed(BTN.L3)) toggleMouse();
+      if (mouse) mouseTick(now, buttons, axes, pressed);
+      else updateNeedle(handleDirection(now, buttons, axes));
 
-      if (pressed(BTN.A)) { if (current && usable(current)) activate(current); else move(DIR_ANGLE.down, true); }
+      if (!mouse && pressed(BTN.A)) { if (current && usable(current)) activate(current); else move(DIR_ANGLE.down, true); }
       if (pressed(BTN.B)) { wentBack = false; bDownAt = now; back(); }
       // Hold B: always go back a page (when the press only closed something, or looked stuck).
       if (buttons[BTN.B] && bDownAt != null && now - bDownAt >= HOLD_BACK) {
@@ -1994,18 +2175,18 @@
         if (!wentBack) { wentBack = true; say('Back'); history.back(); }
       }
       if (!buttons[BTN.B]) bDownAt = null;
-      if (pressed(BTN.Y)) cycleViz();
-      if (pressed(BTN.X)) enterScope();
+      if (!mouse && pressed(BTN.Y)) cycleViz();
+      if (!mouse && pressed(BTN.X)) enterScope();
       if (pressed(BTN.MENU)) debugReport(); // ☰: debug report (Alt+Shift+D can be taken by the page)
       if (pressed(BTN.LB)) switchTab(-1);
       if (pressed(BTN.RB)) switchTab(1);
-      if (pressed(BTN.LT)) pageScroll(-1);
-      if (pressed(BTN.RT)) pageScroll(1);
+      if (!mouse && pressed(BTN.LT)) pageScroll(-1);
+      if (!mouse && pressed(BTN.RT)) pageScroll(1);
 
       // Right stick: free scroll of whatever contains the focused element.
       const sx = Math.abs(axes[2]) > SCROLL_DEADZONE ? axes[2] : 0;
       const sy = Math.abs(axes[3]) > SCROLL_DEADZONE ? axes[3] : 0;
-      if (sx || sy) {
+      if (!mouse && (sx || sy)) {
         scrolledAway = true;
         const curve = (v) => Math.sign(v) * v * v * SCROLL_SPEED;
         const frameOfCurrent = current instanceof RemoteEl ? current.frame
@@ -2019,13 +2200,13 @@
     }
 
     prevButtons = buttons;
-    if (now - lastGoneCheck >= GONE_CHECK_MS) {
+    if (!mouse && now - lastGoneCheck >= GONE_CHECK_MS) { // focus upkeep pauses in mouse mode
       lastGoneCheck = now;
       checkScopes();
       if (!settling(now)) { recoverFocus(); revalidateCurrent(); }
     }
     rememberRect();
-    updateRing();
+    if (!mouse) updateRing();
     updateHud(axes);
     requestAnimationFrame(tick);
   }

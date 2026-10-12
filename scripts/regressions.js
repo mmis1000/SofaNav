@@ -102,6 +102,57 @@ const checks = {
     return { ok, detail: `X-style menu (B from #${inside}) open=${menu.open}, popover open=${pop.open}, stuck overlay: B ${stuck.hash === '#before-menu' ? 'stayed' : 'went back'}, hold B ${held === '' ? 'went back' : 'stayed'}` };
   },
 
+  // E32: mouse mode (L3) is the escape hatch: clicking outside a menu closes it, hover-only
+  // controls work, clicks reach frames, D-pad nudges and the stick moves the cursor.
+  async 'E32 mouse mode: outside click, hover-only control, frame click, nudge, stick'(page) {
+    const { press, wait } = helpers(page);
+    const at = (sel) => page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [(r.left + r.right) / 2, (r.top + r.bottom) / 2]; }, sel);
+    const mouseTo = (x, y) => page.evaluate(([x, y]) => __sofanav.mouseTo(x, y), [x, y]);
+    const log = () => page.evaluate(() => document.getElementById('log').textContent);
+    const r = {};
+    await press('ArrowUp');
+    // 1. A menu open; mouse mode; click a blank spot outside it.
+    await page.evaluate(() => { document.getElementById('menuBtn').scrollIntoView({ block: 'center' }); document.getElementById('menuBtn').click(); });
+    await wait(300);
+    await press('KeyF');
+    r.on = await page.evaluate(() => !!__sofanav.mouse());
+    const blank = await page.evaluate(() => { for (let y = 60; y < innerHeight; y += 20) for (let x = innerWidth - 20; x > innerWidth / 2; x -= 40) { const e = document.elementFromPoint(x, y); if (e === document.body || e === document.documentElement) return [x, y]; } return null; });
+    await mouseTo(...blank);
+    await press('Enter');
+    r.menuClosed = await page.evaluate(() => document.getElementById('xMenu').hidden);
+    // 2. Hover-only control.
+    await page.evaluate(() => document.getElementById('hoverCard').scrollIntoView({ block: 'center' }));
+    await wait(300);
+    await mouseTo(...await at('#hoverCard'));
+    r.toolsShown = await page.evaluate(() => getComputedStyle(document.getElementById('hoverTools')).display !== 'none');
+    await mouseTo(...await at('#hoverDelete'));
+    await press('Enter');
+    r.hoverClick = (await log()).includes('hover tool clicked');
+    // 3. A click inside the same-origin frame.
+    await page.evaluate(async () => { document.getElementById('sameFrame').scrollIntoView({ block: 'center' }); await new Promise((res) => setTimeout(res, 300)); await __sofanav.refreshFrames(); });
+    const fb = await page.evaluate(() => {
+      const f = document.getElementById('sameFrame'), fr = f.getBoundingClientRect();
+      const b = f.contentDocument.querySelector('button'), br = b.getBoundingClientRect();
+      return [fr.left + f.clientLeft + (br.left + br.right) / 2, fr.top + f.clientTop + (br.top + br.bottom) / 2, b.textContent];
+    });
+    await mouseTo(fb[0], fb[1]);
+    await press('Enter');
+    r.frameClick = (await log()).includes(fb[2]);
+    // 4. D-pad nudge and stick movement.
+    const p0 = await page.evaluate(() => __sofanav.mouse());
+    await press('ArrowRight');
+    const p1 = await page.evaluate(() => __sofanav.mouse());
+    await page.keyboard.down('KeyC'); await wait(300); await page.keyboard.up('KeyC'); await wait(200);
+    const p2 = await page.evaluate(() => __sofanav.mouse());
+    r.nudge = Math.round(p1.x - p0.x);
+    r.stick = p2.x > p1.x + 20 && p2.y > p1.y + 20;
+    // 5. Leave mouse mode: focus navigation resumes near the cursor.
+    await press('KeyF');
+    r.off = await page.evaluate(() => !__sofanav.mouse() && !!__sofanav.current());
+    const ok = r.on && r.menuClosed && r.toolsShown && r.hoverClick && r.frameClick && r.nudge === 4 && r.stick && r.off;
+    return { ok, detail: JSON.stringify(r) };
+  },
+
   // E21: a frame that navigates to a page without the script must become one plain element.
   async 'E21 frame that loses its client becomes a plain element'(page) {
     const { press, wait } = helpers(page);

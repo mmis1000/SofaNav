@@ -41,8 +41,8 @@
 <body>
 <header>
   <h1>Gamepad Nav Test</h1>
-  <div>Controller: D-pad/left stick move · A click · B back (hold: always back a page) · Y graph · LT/RT page · right stick scroll · View on/off</div>
-  <div>Keyboard fallback: arrows · Enter = A · Backspace = B · X = enter container · Y = graph · PgUp/PgDn = LT/RT · V = View · M = Menu (debug report) · Q/E/Z/C = stick at 45° ↖↗↙↘ · J/L rotate aim, K = push stick at aim · Y twice = stick pie</div>
+  <div>Controller: D-pad/left stick move · A click · B back (hold: always back a page) · L3 mouse mode · Y graph · LT/RT page · right stick scroll · View on/off</div>
+  <div>Keyboard fallback: arrows · Enter = A · Backspace = B · X = enter container · Y = graph · PgUp/PgDn = LT/RT · V = View · M = Menu (debug report) · F = L3 (mouse mode) · Q/E/Z/C = stick at 45° ↖↗↙↘ · J/L rotate aim, K = push stick at aim · Y twice = stick pie</div>
 </header>
 
 <h2>Store layout (from your screenshot)</h2>
@@ -304,6 +304,14 @@
     <div><button>Stuck item 2</button></div>
   </div>
 </div>
+<h2>Mouse mode (L3) — the escape hatch: a hover-only control focus navigation can't reach</h2>
+<div class="row">
+  <div id="hoverCard" style="position:relative;width:260px;height:70px;border:1px solid #555;border-radius:8px;padding:8px">
+    Hover me: tools appear (no keyboard access)
+    <div id="hoverTools" style="display:none;position:absolute;right:8px;bottom:8px"><span id="hoverDelete" style="background:#a33;color:#fff;padding:2px 8px;border-radius:4px;cursor:pointer">Delete</span></div>
+  </div>
+</div>
+
 <!-- Native popover: ignores a scripted Escape, so SofaNav must use hidePopover(). -->
 <div popover id="pop" role="menu" style="background:#2a2a2a;color:#ddd;border:1px solid #555;border-radius:8px;padding:8px">
   <button>Popover item 1</button> <button>Popover item 2</button>
@@ -326,6 +334,12 @@
   const xMenu = document.getElementById('xMenu'), menuLayer = document.getElementById('menuLayer');
   document.getElementById('menuBtn').onclick = () => { xMenu.hidden = false; document.querySelector('#xScroll a').focus(); };
   document.getElementById('xGroup').addEventListener('keydown', (e) => { if (e.key === 'Escape') xMenu.hidden = true; });
+  // Like X: a press outside the menu closes it.
+  document.addEventListener('pointerdown', (e) => { if (!xMenu.hidden && !xMenu.contains(e.target) && e.target.id !== 'menuBtn') xMenu.hidden = true; });
+  const hoverCard = document.getElementById('hoverCard'), hoverTools = document.getElementById('hoverTools');
+  hoverCard.addEventListener('mouseenter', () => { hoverTools.style.display = 'block'; });
+  hoverCard.addEventListener('mouseleave', () => { hoverTools.style.display = 'none'; });
+  document.getElementById('hoverDelete').addEventListener('click', () => note('hover tool clicked: Delete'));
   document.getElementById('stuckBtn').onclick = () => { menuLayer.hidden = false; };
   document.getElementById('menuMask').onclick = () => { menuLayer.hidden = true; };
   document.getElementById('ok').onclick = document.getElementById('cancel').onclick = () => document.getElementById('dlg').close();
@@ -334,7 +348,7 @@
   const virtualPad = { id: 'keyboard (virtual)', index: 99, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
     buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
   const KEYMAP = { ArrowUp: 12, ArrowDown: 13, ArrowLeft: 14, ArrowRight: 15, Enter: 0, Backspace: 1,
-    KeyX: 2, KeyY: 3, PageUp: 6, PageDown: 7, KeyV: 8, KeyM: 9 };
+    KeyX: 2, KeyY: 3, PageUp: 6, PageDown: 7, KeyV: 8, KeyM: 9, KeyF: 10 };
   const realGetGamepads = navigator.getGamepads.bind(navigator);
   let virtualActive = false;
   navigator.getGamepads = () => [...realGetGamepads(), ...(virtualActive ? [virtualPad] : [])];

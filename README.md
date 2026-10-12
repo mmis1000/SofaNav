@@ -58,6 +58,7 @@ docs/
 | A | Click / focus a text field |
 | B | Leave text field → leave container → close dialog / popover → Escape to whatever covers the page (menus, overlays) → otherwise history back |
 | Hold B | Always history back (if a popup won't close) |
+| L3 (click left stick) | Mouse mode on/off: left stick moves a cursor, D-pad nudges it, A clicks, right stick / LT / RT scroll under it, hover events are sent. The escape hatch for anything focus navigation can't reach |
 | X | Enter the focused container (a post card, or a scrollable panel — A also enters a panel) |
 | Y | Cycle graph view: off → focused item → whole screen |
 | LB / RB | Previous / next tab (extension only) |

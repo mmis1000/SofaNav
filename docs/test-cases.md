@@ -457,6 +457,28 @@ usual (leave scope / go back), since the hint is weaker than markup or a mask.
 Light popups are now closed before leaving a scope inside them. The test page's
 X-style menu copies X's real structure; fails on 883b834 and acd22c7.
 
+**E32. Mouse mode: an escape hatch for what focus navigation can't reach**
+(requested by the user after E31). Even with E31, some UI can't be handled by
+moving focus: popups that only close on an outside click, controls that only
+appear on hover, widgets with no focusable parts. *Feature:* L3 (left stick
+click) toggles a cursor. Left stick moves it (squared curve, up to 1500 px/s),
+D-pad nudges 4 px (keyboard-style repeat), A clicks at the point (pointer/mouse
+down, focus or blur like a real click, up, click), right stick / LT / RT scroll
+what's under it, and every move sends over/out/enter/leave/move, so hover menus
+open. B stays Back. Over a frame with a client, the point is mapped into the
+frame (`fromTop`, the inverse of `toTop`) and sent as a `pointer` command over
+the same trusted channel as other commands (E29/E30). Leaving mouse mode focuses
+the stop under or nearest the cursor. Focus upkeep (recovery, ring) pauses while
+it's on. Limits: the events are scripted (untrusted), so page handlers and
+link/button activation work but browser-native actions (text selection,
+dragging scrollbars, native `<select>` lists) don't; frames inside frames
+aren't reached. *Where:* "mouse mode" section (`toggleMouse`, `mouseTick`,
+`hoverTo`, `clickAtPoint`, `scrollUnder`, `hitAt`), `fromTop`/`frameGeometry`,
+client `pointer`/`scroll` commands, `tick`. *Checks:* automated
+(`test:regress`: outside click closes the X-style menu, a hover-only "Delete"
+appears and clicks, a click lands in the same-origin frame, nudge and stick
+movement, leaving resumes focus). Test page keyboard: F = L3.
+
 **E21. A frame kept its client forever.** `answered` was never reset, so after the
 iframe navigated to a page without the script, it kept `hasClient = true` and its
 old proxies stayed alive candidates (commands went to a document that no longer
