@@ -65,7 +65,7 @@ section heading on that page.
 | 25 | Iframes | → from "Before frames" → the same-origin frame is one stop ("A/X enter (n) · right stick scrolls"); → again → the cross-origin frame. A/X enters: F1 → F2 → F3 inside; B leaves. The script-less frame is one plain element | Core: frames navigate like the page; scrolling frames are scroll containers (E18); frames without a client degrade to one element | `refreshFrames`, `applySnapshot`, `RemoteEl`, `toTop`, `candidatesNow` |
 | 26 | Iframes | Enter the cross-origin frame, A on F1 → status box "click in cross-origin: F1" | Core: commands reach cross-origin frames | `activate` (RemoteEl branch), `startClient` |
 | 27 | Iframes | A then B on each frame's text box → focus enters then leaves; no history back | Core: B inside frames asks the frame first | `back`, `askFrameBack` |
-| 28 | Iframes | Make a frame non-scrolling (devtools: shrink its content) → its elements navigate flat with the page; whole-screen graph arrows cross the frame border | Core: non-scrolling frames stay flattened; frame elements are ordinary graph nodes | `related` (RemoteEl ancestry), `buildGraph` |
+| 28 | Iframes (second row) | → from "Left of flat frame" → F1 → F2 → F3 inside the non-scrolling frame → "Right of flat frame"; no hint, no scope, no X needed; whole-screen graph arrows cross its border | Core + E18: a frame that doesn't scroll is not a container, its elements belong to the page (flattened) | `candidatesNow` (frame loop), `startClient` (`docScroll`), `related`, `buildGraph` |
 | 28a | Iframes | Focus the same-origin frame (not entered), right stick down → the frame's page scrolls | Guards E18 | right-stick branch in `tick`, `startClient` (`scroll`) |
 | 28b | Iframes | Enter the same-origin frame, ↓ to the text box, ↓ again → the frame scrolls, next ↓ reaches "Below the fold" | Guards E18: past the last visible item, an entered frame scrolls | `moveNow` (edge), `canScroll` (IFRAME), `startClient` (`scrollStep`) |
 
@@ -230,12 +230,12 @@ pressing past its visible part left the frame instead of scrolling it. *Fix:*
 frames report their document's scroll state with every snapshot; a frame whose
 page scrolls is a scroll container like any panel (one stop, right stick / LT / RT
 scroll it, A/X enters, past the last visible item the frame scrolls, B leaves).
-Frames that don't scroll stay flattened; frames without the script stay one
-plain element. Follow-up bug: an entered frame isn't in `scrollBoxes` (its
+Frames that don't scroll stay flattened (test page: `flatFrame`, loaded with
+`frame.html?short`); frames without the script stay one plain element. Follow-up bug: an entered frame isn't in `scrollBoxes` (its
 elements replace it), so the edge check also accepts an `IFRAME` scope.
 *Where:* `candidatesNow` (frame loop), `applySnapshot` (`scroll`), `startClient`
 (`docScroll`, `scrollStep`), `canScroll`, `moveNow` (edge), `pageScroll`,
-right-stick branch in `tick`. *Checks:* 25, 28a, 28b.
+right-stick branch in `tick`. *Checks:* 25, 28, 28a, 28b.
 
 ### Test-harness pitfalls (not product bugs, but they cost time)
 

@@ -23,6 +23,10 @@
 <input placeholder="Text in frame">
 <div class="tall"><button>Below the fold (scroll the frame)</button></div>
 <script>
+  // ?short: drop the input and the tall section so the page fits and the frame doesn't scroll.
+  if (new URLSearchParams(location.search).has('short')) {
+    document.querySelectorAll('input, .tall').forEach((n) => n.remove());
+  }
   const label = new URLSearchParams(location.search).get('label') || 'frame';
   document.getElementById('origin').textContent = label + ' — ' + location.origin;
   document.addEventListener('click', (e) => {

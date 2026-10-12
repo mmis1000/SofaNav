@@ -97,11 +97,18 @@
           srcdoc="<body style='background:#332;color:#ddd;font:13px system-ui'>No script in here: this whole frame is one element.<br><button>inner</button></body>"></iframe>
   <button>After frames</button>
 </div>
+<div class="row" style="align-items:flex-start;margin-top:12px">
+  <button>Left of flat frame</button>
+  <!-- Fits its content, so it doesn't scroll: no stop of its own; its buttons navigate as if on this page. -->
+  <iframe id="flatFrame" title="non-scrolling frame" style="width:300px;height:150px;border:2px solid #555;border-radius:6px"></iframe>
+  <button>Right of flat frame</button>
+</div>
 <script>
   // Same page from another origin: localhost and 127.0.0.1 are different origins.
   const otherHost = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
   document.getElementById('sameFrame').src = 'frame.html?label=same-origin';
   document.getElementById('crossFrame').src = `${location.protocol}//${otherHost}:${location.port}/test/frame.html?label=cross-origin`;
+  document.getElementById('flatFrame').src = 'frame.html?label=flat&short';
   addEventListener('message', (e) => {
     if (e.data?.test === 'frame-click') document.getElementById('log').textContent = `click in ${e.data.label}: ${e.data.text}`;
   });
